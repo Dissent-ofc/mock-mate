@@ -1,195 +1,255 @@
 import { useState, useEffect, useRef } from 'react';
-import 'regenerator-runtime/runtime'; // Core fix for speech recognition
+import 'regenerator-runtime/runtime';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
-import { Mic, Send, User, Bot, Menu, Settings, MicOff } from 'lucide-react';
+import { Mic, Send, User, Bot, MessageSquare, Plus, MicOff, Loader2, AlertTriangle } from 'lucide-react'; // Added AlertTriangle
+import { getGeminiResponse } from './gemini';
+import { db } from './firebase'; 
+import { collection, addDoc, query, orderBy, onSnapshot, doc, setDoc } from 'firebase/firestore';
 
 function App() {
-  // --- 1. SETUP VOICE RECOGNITION ---
-  const {
-    transcript,
-    listening,
-    resetTranscript,
-    browserSupportsSpeechRecognition
-  } = useSpeechRecognition();
-
-  // --- 2. STATE MANAGEMENT ---
+  // --- STATE ---
+  const [sessionId, setSessionId] = useState(null); 
+  const [savedChats, setSavedChats] = useState([]); 
   const [messages, setMessages] = useState([
-    { id: 1, text: "Hello! I'm Mock-Mate. Which role are we interviewing for today?", sender: "ai", time: "10:00 AM" },
+    { text: "Hello! Click 'New Chat' to start.", sender: "ai", time: "Now" }
   ]);
   const [inputText, setInputText] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLimitHit, setIsLimitHit] = useState(false); // <--- NEW: Rate Limit State
   const messagesEndRef = useRef(null);
+  
+  // Voice Hook
+  const { transcript, listening, resetTranscript } = useSpeechRecognition();
 
-  // Sync Voice to Input Box
   useEffect(() => {
-    if (transcript) {
-      setInputText(transcript);
-    }
+    if (transcript) setInputText(transcript);
   }, [transcript]);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isLoading, isLimitHit]); // Scroll when error appears too
 
-  // --- 3. HANDLERS ---
-  const handleSend = () => {
-    if (!inputText.trim()) return;
+  // --- 1. LOAD SIDEBAR HISTORY ---
+  useEffect(() => {
+    const q = query(collection(db, "chats"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const chatsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSavedChats(chatsData);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // --- 2. START NEW CHAT ---
+  const startNewChat = async () => {
+    const newChatRef = await addDoc(collection(db, "chats"), {
+      title: "New Interview",
+      createdAt: new Date(),
+      messages: [] 
+    });
+    setSessionId(newChatRef.id);
+    setMessages([{ text: "Hello! What role do you want to interview for?", sender: "ai", time: "Now" }]);
+    setIsLimitHit(false); // Reset error on new chat
+  };
+
+  // --- 3. LOAD OLD CHAT ---
+  const loadChat = (chat) => {
+    setSessionId(chat.id);
+    setMessages(chat.messages || []);
+    setIsLimitHit(false); // Reset error
+  };
+
+  // --- 4. HANDLE SEND ---
+  const handleSend = async () => {
+    // Stop if empty OR if limit is hit
+    if (!inputText.trim() || isLimitHit) return;
+
+    if (listening) {
+      SpeechRecognition.stopListening();
+    }
     
-    // Add User Message
+    // Ensure we have a session
+    let currentSessionId = sessionId;
+    if (!currentSessionId) {
+      const newChatRef = await addDoc(collection(db, "chats"), {
+        title: inputText.substring(0, 20) + "...", 
+        createdAt: new Date(),
+        messages: []
+      });
+      currentSessionId = newChatRef.id;
+      setSessionId(currentSessionId);
+    }
+
     const userMsg = { 
-      id: messages.length + 1, 
       text: inputText, 
       sender: "user", 
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
     };
-    
-    setMessages((prev) => [...prev, userMsg]);
-    setInputText("");
-    resetTranscript(); // Clear voice buffer
 
-    // Simulate AI Reply (Fake for now - Backend connects tomorrow)
-    setTimeout(() => {
+    // Update UI
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
+    setInputText("");
+    resetTranscript();
+    setIsLoading(true);
+
+    // SAVE USER MSG TO FIRESTORE
+    try {
+      const chatRef = doc(db, "chats", currentSessionId);
+      await setDoc(chatRef, { messages: updatedMessages }, { merge: true });
+      
+      // CALL GEMINI API
+      const aiText = await getGeminiResponse(updatedMessages, inputText);
+      
+      // If we get here, it worked! Reset limit flag.
+      setIsLimitHit(false);
+
       const aiMsg = { 
-        id: messages.length + 2, 
-        text: "That's an interesting point. Can you explain how you would handle state management in this scenario?", 
+        text: aiText, 
         sender: "ai", 
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
       };
-      setMessages((prev) => [...prev, aiMsg]);
-    }, 1500);
-  };
 
-  const toggleMic = () => {
-    if (listening) {
-      SpeechRecognition.stopListening();
-    } else {
-      SpeechRecognition.startListening({ continuous: true });
+      const finalMessages = [...updatedMessages, aiMsg];
+      setMessages(finalMessages);
+
+      // SAVE AI MSG TO FIRESTORE
+      await setDoc(chatRef, { messages: finalMessages }, { merge: true });
+
+      if (updatedMessages.length <= 2) {
+        await setDoc(chatRef, { title: inputText.substring(0, 20) + "..." }, { merge: true });
+      }
+
+    } catch (error) {
+      console.error("AI Error:", error);
+      
+      // CHECK FOR 429 (Too Many Requests) or 503 (Overloaded)
+      if (error.message?.includes("429") || error.message?.includes("503")) {
+        setIsLimitHit(true);
+        // Auto-remove error after 60 seconds
+        setTimeout(() => setIsLimitHit(false), 60000);
+      } else {
+        // Handle other errors (like network fail) gracefully
+        const errorMsg = { text: "Error: Could not connect to AI. Please try again.", sender: "ai", time: "Now" };
+        setMessages(prev => [...prev, errorMsg]);
+      }
+    } finally {
+      setIsLoading(false); 
     }
   };
-
-  if (!browserSupportsSpeechRecognition) {
-    return <span>Browser doesn't support speech recognition. Try Chrome.</span>;
-  }
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
       
-      {/* --- SIDEBAR (Left) --- */}
+      {/* --- SIDEBAR --- */}
       <div className="hidden md:flex flex-col w-64 bg-slate-900 text-white p-4">
-        <div className="flex items-center gap-2 mb-8">
-          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-bold shadow-lg shadow-blue-500/50">M</div>
-          <h1 className="text-xl font-bold tracking-tight">Mock-Mate</h1>
-        </div>
-        
-        <div className="space-y-2">
-          <p className="text-xs text-gray-400 uppercase font-semibold px-2 mb-2">Select Interview</p>
-          <button className="w-full text-left px-3 py-2 bg-blue-600 rounded-lg text-sm font-medium shadow-md">
-            Frontend Developer
-          </button>
-          <button className="w-full text-left px-3 py-2 hover:bg-slate-800 rounded-lg text-sm font-medium transition text-gray-300">
-            Data Analyst
-          </button>
-          <button className="w-full text-left px-3 py-2 hover:bg-slate-800 rounded-lg text-sm font-medium transition text-gray-300">
-            Product Manager
-          </button>
+        <div className="flex items-center gap-2 mb-6">
+          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-bold">M</div>
+          <h1 className="text-xl font-bold">Mock-Mate</h1>
         </div>
 
-        <div className="mt-auto pt-6 border-t border-slate-700">
-          <button className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition">
-            <Settings size={18} /> Settings
-          </button>
+        <button 
+          onClick={startNewChat}
+          className="flex items-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium transition mb-6 shadow-md"
+        >
+          <Plus size={18} /> New Interview
+        </button>
+        
+        <div className="flex-1 overflow-y-auto space-y-2">
+          <p className="text-xs text-gray-400 uppercase font-semibold px-2 mb-2">History</p>
+          {savedChats.map((chat) => (
+            <button 
+              key={chat.id}
+              onClick={() => loadChat(chat)}
+              className={`flex items-center gap-3 w-full text-left px-3 py-3 rounded-lg text-sm transition ${
+                sessionId === chat.id ? "bg-slate-800 text-white" : "text-gray-400 hover:bg-slate-800 hover:text-gray-200"
+              }`}
+            >
+              <MessageSquare size={16} />
+              <span className="truncate">{chat.title || "Untitled Chat"}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* --- MAIN CONTENT (Right) --- */}
+      {/* --- MAIN CHAT --- */}
       <div className="flex-1 flex flex-col h-full relative">
-        
-        {/* Header */}
         <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm z-10">
-          <div className="flex items-center gap-3">
-            <button className="md:hidden p-2 text-gray-600"><Menu /></button>
-            <div>
-              <h2 className="font-bold text-lg text-gray-800">Frontend Developer Interview</h2>
-              <p className="text-xs text-green-600 font-medium flex items-center gap-1">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                AI Recruiter Online
-              </p>
-            </div>
-          </div>
-          <div className="text-sm text-gray-500 border px-3 py-1 rounded-full bg-gray-50 border-gray-200">
-             Topic: <strong className="text-blue-600">React.js & Performance</strong>
-          </div>
+          <h2 className="font-bold text-lg text-gray-800">
+            {sessionId ? "Interview in Progress" : "Start a New Interview"}
+          </h2>
         </header>
 
-        {/* Chat Area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-gray-50/50">
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex gap-4 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
-              
-              {/* Avatar */}
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
-                msg.sender === 'user' ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' : 'bg-white border text-blue-600'
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-gray-50">
+          {messages.map((msg, index) => (
+            <div key={index} className={`flex gap-4 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
+               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-white border text-blue-600'
               }`}>
                 {msg.sender === 'user' ? <User size={20} /> : <Bot size={20} />}
               </div>
-
-              {/* Message Bubble */}
-              <div className={`max-w-[80%] md:max-w-[70%] space-y-1 ${msg.sender === 'user' ? 'items-end flex flex-col' : ''}`}>
-                <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed ${
-                  msg.sender === 'user' 
-                    ? 'bg-blue-600 text-white rounded-tr-none' 
-                    : 'bg-white text-gray-800 border rounded-tl-none'
+              <div className={`max-w-[80%] p-4 rounded-2xl shadow-sm text-sm ${
+                  msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-white text-gray-800 border'
                 }`}>
                   {msg.text}
-                </div>
-                <span className="text-xs text-gray-400 px-1">{msg.time}</span>
               </div>
             </div>
           ))}
+
+          {isLoading && (
+            <div className="flex gap-4">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white border text-blue-600">
+                <Bot size={20} />
+              </div>
+              <div className="bg-white border text-gray-500 p-4 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
+                <Loader2 className="animate-spin" size={16} />
+                <span className="text-xs font-medium">AI is thinking...</span>
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
+        {/* INPUT AREA */}
         <div className="p-4 bg-white border-t">
-          <div className={`max-w-4xl mx-auto flex items-center gap-3 bg-gray-50 p-2 rounded-xl border transition-all shadow-inner ${
-            listening ? 'ring-2 ring-red-200 border-red-300' : 'focus-within:ring-2 focus-within:ring-blue-100'
-          }`}>
-            
-            {/* MIC BUTTON */}
-            <button 
-              className={`p-3 rounded-lg transition-all duration-300 ${
-                listening 
-                  ? 'bg-red-500 text-white animate-pulse shadow-red-500/50 shadow-lg' 
-                  : 'bg-white text-gray-500 hover:text-blue-600 shadow-sm border'
-              }`}
-              onClick={toggleMic}
-              title="Hold to Speak"
+          
+          {/* --- NEW: RATE LIMIT WARNING BANNER --- */}
+          {isLimitHit && (
+             <div className="bg-amber-50 border-l-4 border-amber-500 p-3 mb-4 rounded shadow-sm flex items-center gap-2 animate-bounce">
+                <AlertTriangle className="text-amber-500" size={20} />
+                <p className="text-amber-700 text-xs font-medium">
+                   Peak request limit hit! Please wait 60 seconds before sending your next answer.
+                </p>
+             </div>
+          )}
+
+          <div className={`max-w-4xl mx-auto flex items-center gap-3 bg-gray-50 p-2 rounded-xl border ${listening ? 'border-red-400 ring-1 ring-red-400' : ''}`}>
+             <button 
+              className={`p-3 rounded-lg transition-all ${listening ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-gray-500 border'}`}
+              onClick={() => listening ? SpeechRecognition.stopListening() : SpeechRecognition.startListening()}
             >
-              {listening ? <MicOff size={22} /> : <Mic size={22} />}
+              {listening ? <MicOff size={20} /> : <Mic size={20} />}
             </button>
-            
             <input 
               type="text" 
-              className="flex-1 bg-transparent border-none outline-none text-gray-700 placeholder-gray-400 px-2"
-              placeholder={listening ? "Listening..." : "Type your answer..."}
+              className="flex-1 bg-transparent border-none outline-none text-gray-700 px-2 disabled:text-gray-400"
+              placeholder={isLimitHit ? "Please wait..." : "Type your answer..."}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              disabled={isLimitHit || isLoading} // <--- Disable input if limit hit
             />
-            
             <button 
-              onClick={handleSend}
-              className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={!inputText.trim()}
+              onClick={handleSend} 
+              className={`p-3 bg-blue-600 text-white rounded-lg shadow-md ${isLimitHit || isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}`}
+              disabled={isLimitHit || isLoading} // <--- Disable button if limit hit
             >
               <Send size={20} />
             </button>
           </div>
-          <p className="text-center text-xs text-gray-400 mt-2">
-             {listening ? <span className="text-red-500 font-bold animate-pulse">● Recording...</span> : "Press the Mic to speak"}
-          </p>
         </div>
-
       </div>
     </div>
   );
