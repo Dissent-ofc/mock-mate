@@ -1,54 +1,46 @@
 import { useState, useEffect, useRef } from 'react';
 import 'regenerator-runtime/runtime';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
-import { Mic, Send, User, Bot, MessageSquare, Plus, MicOff, Loader2, AlertTriangle, Trash2 } from 'lucide-react'; // Added Trash2
+import { Mic, Send, User, Bot, MessageSquare, Plus, MicOff, Loader2, AlertTriangle, Trash2 } from 'lucide-react';
 import { getGeminiResponse } from './gemini';
 import { db } from './firebase'; 
 import { collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 const ChatMode = ({ onBack, externalSessionId }) => {
-  // --- STATE ---
-  const [sessionId, setSessionId] = useState(externalSessionId || null); 
+  const [sessionId, setSessionId] = useState(externalSessionId || null);
   const [savedChats, setSavedChats] = useState([]); 
   const [messages, setMessages] = useState([
     { text: "Hello! Click 'New Chat' to start.", sender: "ai", time: "Now" }
   ]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isLimitHit, setIsLimitHit] = useState(false); // <--- NEW: Rate Limit State
+  const [isLimitHit, setIsLimitHit] = useState(false);
   const messagesEndRef = useRef(null);
   
-  // Voice Hook
   const { transcript, listening, resetTranscript } = useSpeechRecognition();
-  
-  useEffect(() => {
-    if (externalSessionId) {
-      setSessionId(externalSessionId);
-    }
-  }, [externalSessionId]);
 
   useEffect(() => {
     if (transcript) setInputText(transcript);
   }, [transcript]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading, isLimitHit]); // Scroll when error appears too
+    if (externalSessionId) setSessionId(externalSessionId);
+  }, [externalSessionId]);
 
-  // --- 1. LOAD SIDEBAR HISTORY ---
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading, isLimitHit]);
+
+  // Load History
   useEffect(() => {
     const q = query(collection(db, "chats"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const chatsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const chatsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setSavedChats(chatsData);
     });
     return () => unsubscribe();
   }, []);
 
-  // --- 2. START NEW CHAT ---
   const startNewChat = async () => {
     const newChatRef = await addDoc(collection(db, "chats"), {
       title: "New Interview",
@@ -57,19 +49,17 @@ const ChatMode = ({ onBack, externalSessionId }) => {
     });
     setSessionId(newChatRef.id);
     setMessages([{ text: "Hello! What role do you want to interview for?", sender: "ai", time: "Now" }]);
-    setIsLimitHit(false); // Reset error on new chat
+    setIsLimitHit(false);
   };
 
-  // --- 3. LOAD OLD CHAT ---
   const loadChat = (chat) => {
     setSessionId(chat.id);
     setMessages(chat.messages || []);
-    setIsLimitHit(false); // Reset error
+    setIsLimitHit(false);
   };
 
-  // --- 3b. DELETE CHAT ---
   const deleteChat = async (e, chatId) => {
-    e.stopPropagation();
+    e.stopPropagation(); 
     try {
       await deleteDoc(doc(db, "chats", chatId));
       if (sessionId === chatId) {
@@ -81,13 +71,9 @@ const ChatMode = ({ onBack, externalSessionId }) => {
     }
   };
 
-  // --- 4. HANDLE SEND ---
   const handleSend = async () => {
     if (!inputText.trim() || isLimitHit) return;
-
-    if (listening) {
-      SpeechRecognition.stopListening();
-    }
+    if (listening) SpeechRecognition.stopListening();
     
     let currentSessionId = sessionId;
     if (!currentSessionId) {
@@ -100,12 +86,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
       setSessionId(currentSessionId);
     }
 
-    const userMsg = { 
-      text: inputText, 
-      sender: "user", 
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-    };
-
+    const userMsg = { text: inputText, sender: "user", time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     setInputText("");
@@ -115,117 +96,110 @@ const ChatMode = ({ onBack, externalSessionId }) => {
     try {
       const chatRef = doc(db, "chats", currentSessionId);
       await setDoc(chatRef, { messages: updatedMessages }, { merge: true });
-      
       const aiText = await getGeminiResponse(updatedMessages, inputText);
-      
       setIsLimitHit(false);
-
-      const aiMsg = { 
-        text: aiText, 
-        sender: "ai", 
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-      };
-
+      const aiMsg = { text: aiText, sender: "ai", time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
       const finalMessages = [...updatedMessages, aiMsg];
       setMessages(finalMessages);
-
       await setDoc(chatRef, { messages: finalMessages }, { merge: true });
 
       if (updatedMessages.length <= 2) {
         await setDoc(chatRef, { title: inputText.substring(0, 20) + "..." }, { merge: true });
       }
-
     } catch (error) {
-      console.error("AI Error:", error);
-      
       if (error.message?.includes("429") || error.message?.includes("503")) {
         setIsLimitHit(true);
         setTimeout(() => setIsLimitHit(false), 60000);
-      } else {
-        const errorMsg = { text: "Error: Could not connect to AI. Please try again.", sender: "ai", time: "Now" };
-        setMessages(prev => [...prev, errorMsg]);
       }
     } finally {
       setIsLoading(false); 
     }
   };
 
-return (
-    <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
+  return (
+    <div className="flex h-full rounded-[32px] overflow-hidden bg-[#141218] border border-white/5 shadow-2xl animate-fade-in-up">
       
-      {/* --- SIDEBAR --- */}
-      <div className="hidden md:flex flex-col w-64 bg-slate-900 text-white p-4">
+      {/* --- M3 DARK SIDEBAR --- */}
+      <div className="hidden md:flex flex-col w-72 bg-[#1d1b20] border-r border-white/5 p-4">
         <div className="flex items-center gap-3 mb-8 px-2">
           <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
-          <h1 className="text-xl font-bold tracking-tight">Mock Mate</h1>
-      </div>
+          <h1 className="text-xl font-medium tracking-tight text-[#e6e1e5]">Mock Mate</h1>
+        </div>
 
         <button 
           onClick={startNewChat}
-          className="flex items-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium transition mb-6 shadow-md"
+          className="flex items-center gap-3 w-full bg-[#4f378b] hover:bg-[#6750a4] text-[#eaddff] px-4 py-4 rounded-[16px] font-medium transition-all mb-6 shadow-lg shadow-black/20"
         >
-          <Plus size={18} /> New Chat
+          <Plus size={20} /> 
+          <span>New Interview</span>
         </button>
         
-        <div className="flex-1 overflow-y-auto space-y-2">
-          <p className="text-xs text-gray-400 uppercase font-semibold px-2 mb-2">History</p>
+        <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+          <p className="text-xs text-[#938f99] uppercase font-bold px-4 mb-2 tracking-wider">Your History</p>
           {savedChats.map((chat) => (
-  <div 
-    key={chat.id}
-    className={`group flex items-center justify-between w-full px-3 py-3 rounded-lg text-sm transition cursor-pointer ${
-      sessionId === chat.id ? "bg-slate-800 text-white" : "text-gray-400 hover:bg-slate-800 hover:text-gray-200"
-    }`}
-    onClick={() => loadChat(chat)}
-  >
-    {/* Chat Title */}
-    <div className="flex items-center gap-3 overflow-hidden">
-      <MessageSquare size={16} className="shrink-0" />
-      <span className="truncate">{chat.title || "Untitled Chat"}</span>
-    </div>
-
-    {/* Delete Button (Only visible on hover) */}
-    <button 
-      onClick={(e) => deleteChat(e, chat.id)}
-      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-opacity"
-      title="Delete Chat"
-    >
-      <Trash2 size={14} />
-    </button>
-  </div>
-))}
+            <div 
+              key={chat.id}
+              onClick={() => loadChat(chat)}
+              className={`group flex items-center justify-between w-full px-4 py-3 rounded-[16px] text-sm transition cursor-pointer ${
+                sessionId === chat.id 
+                  ? "bg-[#332d41] text-[#e8def8]" 
+                  : "text-[#cac4d0] hover:bg-[#2b2930]"
+              }`}
+            >
+              <div className="flex items-center gap-3 overflow-hidden">
+                <MessageSquare size={18} className="shrink-0 opacity-70" />
+                <span className="truncate font-medium">{chat.title || "Untitled Chat"}</span>
+              </div>
+              <button 
+                onClick={(e) => deleteChat(e, chat.id)}
+                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-[#410e0b] hover:text-[#ffb4ab] rounded-full transition-all"
+                title="Delete Chat"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* --- MAIN CHAT WRAPPER (This was the missing piece!) --- */}
-      <div className="flex-1 flex flex-col h-full relative">
+      {/* --- MAIN CHAT AREA --- */}
+      <div className="flex-1 flex flex-col relative bg-[#141218]">
         
-        {/* --- HEADER --- */}
-        <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm z-10">
+        {/* Header */}
+        <header className="bg-[#141218]/90 backdrop-blur-md border-b border-white/5 px-6 py-4 flex items-center justify-between z-10 sticky top-0">
           <div className="flex items-center gap-4">
             <button 
               onClick={onBack} 
-              className="p-2 -ml-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition"
-              title="Back to Dashboard"
+              className="p-2 -ml-2 text-[#938f99] hover:text-[#d0bcff] hover:bg-[#332d41] rounded-full transition"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
             </button>
-            <h2 className="font-bold text-lg text-gray-800">
-              {sessionId ? "Interview in Progress" : "Start a New Interview"}
+            <h2 className="font-normal text-lg text-[#e6e1e5]">
+              {sessionId ? "Interview Session" : "Start New Session"}
             </h2>
+          </div>
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-[#163a15] text-[#b6f2af] rounded-full border border-[#b6f2af]/10">
+            <span className="w-2 h-2 bg-[#b6f2af] rounded-full animate-pulse"></span>
+            <span className="text-xs font-medium uppercase tracking-wider">AI Live</span>
           </div>
         </header>
 
-        {/* --- MESSAGES AREA --- */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-gray-50">
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
           {messages.map((msg, index) => (
-            <div key={index} className={`flex gap-4 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
-               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-white border text-blue-600'
+            <div key={index} className={`flex gap-4 animate-slide-in ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
+               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
+                msg.sender === 'user' 
+                  ? 'bg-[#332d41] border-[#d0bcff]/20 text-[#d0bcff]' 
+                  : 'bg-[#1e1c22] border-white/10 text-[#c4c7c5]'
               }`}>
                 {msg.sender === 'user' ? <User size={20} /> : <Bot size={20} />}
               </div>
-              <div className={`max-w-[80%] p-4 rounded-2xl shadow-sm text-sm ${
-                  msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-white text-gray-800 border'
+              
+              <div className={`max-w-[80%] p-5 rounded-[24px] text-sm md:text-base leading-relaxed shadow-sm ${
+                  msg.sender === 'user' 
+                    ? 'bg-[#4f378b] text-white rounded-tr-none' 
+                    : 'bg-[#2b2930] text-[#e6e1e5] border border-white/5 rounded-tl-none'
                 }`}>
                   {msg.text}
               </div>
@@ -234,56 +208,57 @@ return (
 
           {isLoading && (
             <div className="flex gap-4">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white border text-blue-600">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#1e1c22] border border-white/10 text-[#c4c7c5]">
                 <Bot size={20} />
               </div>
-              <div className="bg-white border text-gray-500 p-4 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
-                <Loader2 className="animate-spin" size={16} />
-                <span className="text-xs font-medium">AI is thinking...</span>
+              <div className="bg-[#2b2930] border border-white/5 text-[#938f99] p-4 rounded-[24px] rounded-tl-none flex items-center gap-3">
+                <Loader2 className="animate-spin text-[#d0bcff]" size={18} />
+                <span className="text-sm font-medium">Analyzing response...</span>
               </div>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* --- INPUT AREA --- */}
-        <div className="p-4 bg-white border-t">
+        {/* Input Area */}
+        <div className="p-6 bg-[#141218] border-t border-white/5">
           {isLimitHit && (
-             <div className="bg-amber-50 border-l-4 border-amber-500 p-3 mb-4 rounded shadow-sm flex items-center gap-2 animate-bounce">
-                <AlertTriangle className="text-amber-500" size={20} />
-                <p className="text-amber-700 text-xs font-medium">
-                   Peak request limit hit! Please wait 60 seconds.
+             <div className="bg-[#410e0b] border border-[#f2b8b5]/20 p-3 mb-4 rounded-[12px] flex items-center gap-3 animate-bounce">
+                <AlertTriangle className="text-[#f2b8b5]" size={20} />
+                <p className="text-[#f2b8b5] text-sm font-medium">
+                   Peak usage limit. Please wait 60 seconds.
                 </p>
              </div>
           )}
 
-          <div className={`max-w-4xl mx-auto flex items-center gap-3 bg-gray-50 p-2 rounded-xl border ${listening ? 'border-red-400 ring-1 ring-red-400' : ''}`}>
+          <div className={`max-w-4xl mx-auto flex items-center gap-3 bg-[#1e1c22] p-2 rounded-full border ${listening ? 'border-[#f2b8b5]' : 'border-white/10'} shadow-lg transition-colors focus-within:border-[#d0bcff]/50`}>
              <button 
-              className={`p-3 rounded-lg transition-all ${listening ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-gray-500 border'}`}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${listening ? 'bg-[#8c1d18] text-white animate-pulse' : 'hover:bg-[#332d41] text-[#cac4d0]'}`}
               onClick={() => listening ? SpeechRecognition.stopListening() : SpeechRecognition.startListening()}
             >
-              {listening ? <MicOff size={20} /> : <Mic size={20} />}
+              {listening ? <MicOff size={22} /> : <Mic size={22} />}
             </button>
+            
             <input 
               type="text" 
-              className="flex-1 bg-transparent border-none outline-none text-gray-700 px-2 disabled:text-gray-400"
+              className="flex-1 bg-transparent border-none outline-none text-[#e6e1e5] px-2 placeholder-[#938f99] h-full"
               placeholder={isLimitHit ? "Please wait..." : "Type your answer..."}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               disabled={isLimitHit || isLoading}
             />
+            
             <button 
               onClick={handleSend} 
-              className={`p-3 bg-blue-600 text-white rounded-lg shadow-md ${isLimitHit || isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}`}
+              className={`w-12 h-12 bg-[#d0bcff] text-[#381e72] rounded-full flex items-center justify-center hover:bg-[#e8def8] transition-all shadow-md ${isLimitHit || isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={isLimitHit || isLoading}
             >
-              <Send size={20} />
+              <Send size={22} />
             </button>
           </div>
         </div>
-
-      </div> {/* End of Main Chat Wrapper */}
+      </div>
     </div>
   );
 }
