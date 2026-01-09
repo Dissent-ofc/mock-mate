@@ -1,256 +1,166 @@
-import { useState, useEffect, useRef } from 'react';
-import 'regenerator-runtime/runtime';
-import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
-import { Mic, Send, User, Bot, MessageSquare, Plus, MicOff, Loader2, AlertTriangle } from 'lucide-react'; // Added AlertTriangle
-import { getGeminiResponse } from './gemini';
-import { db } from './firebase'; 
+import { useState } from 'react';
+import { signInWithGoogle } from './firebase';
+import { db } from './firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import { User as UserIcon, MessageSquare, Zap, LogOut, FileText } from 'lucide-react';
+import ResumeInput from './ResumeInput';
+import RapidFire from './RapidFire';
+import ChatMode from './ChatMode';
 
+// ✅ CORRECT
 function App() {
-  // --- STATE ---
-  const [sessionId, setSessionId] = useState(null); 
-  const [savedChats, setSavedChats] = useState([]); 
-  const [messages, setMessages] = useState([
-    { text: "Hello! Click 'New Chat' to start.", sender: "ai", time: "Now" }
-  ]);
-  const [inputText, setInputText] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLimitHit, setIsLimitHit] = useState(false); // <--- NEW: Rate Limit State
-  const messagesEndRef = useRef(null);
-  
-  // Voice Hook
-  const { transcript, listening, resetTranscript } = useSpeechRecognition();
+  const [state, setState] = useState(false);
+  const [user, setUser] = useState(null);
+  const [view, setView] = useState("LOGIN");
+  const [sessionId, setSessionId] = useState(null); // ✅ Move it here!
 
-  useEffect(() => {
-    if (transcript) setInputText(transcript);
-  }, [transcript]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading, isLimitHit]); // Scroll when error appears too
-
-  // --- 1. LOAD SIDEBAR HISTORY ---
-  useEffect(() => {
-    const q = query(collection(db, "chats"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const chatsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setSavedChats(chatsData);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // --- 2. START NEW CHAT ---
-  const startNewChat = async () => {
-    const newChatRef = await addDoc(collection(db, "chats"), {
-      title: "New Interview",
-      createdAt: new Date(),
-      messages: [] 
-    });
-    setSessionId(newChatRef.id);
-    setMessages([{ text: "Hello! What role do you want to interview for?", sender: "ai", time: "Now" }]);
-    setIsLimitHit(false); // Reset error on new chat
-  };
-
-  // --- 3. LOAD OLD CHAT ---
-  const loadChat = (chat) => {
-    setSessionId(chat.id);
-    setMessages(chat.messages || []);
-    setIsLimitHit(false); // Reset error
-  };
-
-  // --- 4. HANDLE SEND ---
-  const handleSend = async () => {
-    // Stop if empty OR if limit is hit
-    if (!inputText.trim() || isLimitHit) return;
-
-    if (listening) {
-      SpeechRecognition.stopListening();
+  // Handle Login
+  const handleLogin = async () => {
+    const userData = await signInWithGoogle();
+    if (userData) {
+      setUser(userData);
+      setView("DASHBOARD");
     }
+  };
+
+  // --- HANDLE RESUME START ---
+  const handleResumeStart = async (resumeText) => {
+    const startMsg = `Here is my resume context: \n${resumeText}\n\n Please act as an interviewer and ask me questions based on my specific experience listed above. Start by welcoming me and mentioning a specific project from my resume.`;
     
-    // Ensure we have a session
-    let currentSessionId = sessionId;
-    if (!currentSessionId) {
-      const newChatRef = await addDoc(collection(db, "chats"), {
-        title: inputText.substring(0, 20) + "...", 
-        createdAt: new Date(),
-        messages: []
-      });
-      currentSessionId = newChatRef.id;
-      setSessionId(currentSessionId);
-    }
+    const newChatRef = await addDoc(collection(db, "chats"), {
+      title: "Resume Interview",
+      createdAt: new Date(),
+      messages: [
+        { text: startMsg, sender: "user", time: "Now" }
+      ] 
+    });
 
-    const userMsg = { 
-      text: inputText, 
-      sender: "user", 
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-    };
-
-    // Update UI
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
-    setInputText("");
-    resetTranscript();
-    setIsLoading(true);
-
-    // SAVE USER MSG TO FIRESTORE
-    try {
-      const chatRef = doc(db, "chats", currentSessionId);
-      await setDoc(chatRef, { messages: updatedMessages }, { merge: true });
-      
-      // CALL GEMINI API
-      const aiText = await getGeminiResponse(updatedMessages, inputText);
-      
-      // If we get here, it worked! Reset limit flag.
-      setIsLimitHit(false);
-
-      const aiMsg = { 
-        text: aiText, 
-        sender: "ai", 
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-      };
-
-      const finalMessages = [...updatedMessages, aiMsg];
-      setMessages(finalMessages);
-
-      // SAVE AI MSG TO FIRESTORE
-      await setDoc(chatRef, { messages: finalMessages }, { merge: true });
-
-      if (updatedMessages.length <= 2) {
-        await setDoc(chatRef, { title: inputText.substring(0, 20) + "..." }, { merge: true });
-      }
-
-    } catch (error) {
-      console.error("AI Error:", error);
-      
-      // CHECK FOR 429 (Too Many Requests) or 503 (Overloaded)
-      if (error.message?.includes("429") || error.message?.includes("503")) {
-        setIsLimitHit(true);
-        // Auto-remove error after 60 seconds
-        setTimeout(() => setIsLimitHit(false), 60000);
-      } else {
-        // Handle other errors (like network fail) gracefully
-        const errorMsg = { text: "Error: Could not connect to AI. Please try again.", sender: "ai", time: "Now" };
-        setMessages(prev => [...prev, errorMsg]);
-      }
-    } finally {
-      setIsLoading(false); 
-    }
-  };
+    setSessionId(newChatRef.id);
+    setView("CHAT");
+  }; // ✅ Add this closing brace!
 
   return (
-    <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
       
-      {/* --- SIDEBAR --- */}
-      <div className="hidden md:flex flex-col w-64 bg-slate-900 text-white p-4">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-bold">M</div>
-          <h1 className="text-xl font-bold">Mock-Mate</h1>
-        </div>
-
-        <button 
-          onClick={startNewChat}
-          className="flex items-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium transition mb-6 shadow-md"
-        >
-          <Plus size={18} /> New Interview
-        </button>
-        
-        <div className="flex-1 overflow-y-auto space-y-2">
-          <p className="text-xs text-gray-400 uppercase font-semibold px-2 mb-2">History</p>
-          {savedChats.map((chat) => (
-            <button 
-              key={chat.id}
-              onClick={() => loadChat(chat)}
-              className={`flex items-center gap-3 w-full text-left px-3 py-3 rounded-lg text-sm transition ${
-                sessionId === chat.id ? "bg-slate-800 text-white" : "text-gray-400 hover:bg-slate-800 hover:text-gray-200"
-              }`}
-            >
-              <MessageSquare size={16} />
-              <span className="truncate">{chat.title || "Untitled Chat"}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* --- MAIN CHAT --- */}
-      <div className="flex-1 flex flex-col h-full relative">
-        <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm z-10">
-          <h2 className="font-bold text-lg text-gray-800">
-            {sessionId ? "Interview in Progress" : "Start a New Interview"}
-          </h2>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-gray-50">
-          {messages.map((msg, index) => (
-            <div key={index} className={`flex gap-4 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
-               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-white border text-blue-600'
-              }`}>
-                {msg.sender === 'user' ? <User size={20} /> : <Bot size={20} />}
-              </div>
-              <div className={`max-w-[80%] p-4 rounded-2xl shadow-sm text-sm ${
-                  msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-white text-gray-800 border'
-                }`}>
-                  {msg.text}
-              </div>
+      {/* --- HEADER (Visible everywhere except login) --- */}
+      {view !== "LOGIN" && (
+        <nav className="bg-white border-b px-6 py-3 flex justify-between items-center">
+          <div className="font-bold text-xl tracking-tight text-blue-600 cursor-pointer" onClick={() => setView("DASHBOARD")}>
+            Mock Mate
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <img src={user?.photoURL} alt="User" className="w-8 h-8 rounded-full" />
+              <span className="hidden md:inline">{user?.displayName}</span>
             </div>
-          ))}
-
-          {isLoading && (
-            <div className="flex gap-4">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white border text-blue-600">
-                <Bot size={20} />
-              </div>
-              <div className="bg-white border text-gray-500 p-4 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
-                <Loader2 className="animate-spin" size={16} />
-                <span className="text-xs font-medium">AI is thinking...</span>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* INPUT AREA */}
-        <div className="p-4 bg-white border-t">
-          
-          {/* --- NEW: RATE LIMIT WARNING BANNER --- */}
-          {isLimitHit && (
-             <div className="bg-amber-50 border-l-4 border-amber-500 p-3 mb-4 rounded shadow-sm flex items-center gap-2 animate-bounce">
-                <AlertTriangle className="text-amber-500" size={20} />
-                <p className="text-amber-700 text-xs font-medium">
-                   Peak request limit hit! Please wait 60 seconds before sending your next answer.
-                </p>
-             </div>
-          )}
-
-          <div className={`max-w-4xl mx-auto flex items-center gap-3 bg-gray-50 p-2 rounded-xl border ${listening ? 'border-red-400 ring-1 ring-red-400' : ''}`}>
-             <button 
-              className={`p-3 rounded-lg transition-all ${listening ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-gray-500 border'}`}
-              onClick={() => listening ? SpeechRecognition.stopListening() : SpeechRecognition.startListening()}
-            >
-              {listening ? <MicOff size={20} /> : <Mic size={20} />}
-            </button>
-            <input 
-              type="text" 
-              className="flex-1 bg-transparent border-none outline-none text-gray-700 px-2 disabled:text-gray-400"
-              placeholder={isLimitHit ? "Please wait..." : "Type your answer..."}
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              disabled={isLimitHit || isLoading} // <--- Disable input if limit hit
-            />
-            <button 
-              onClick={handleSend} 
-              className={`p-3 bg-blue-600 text-white rounded-lg shadow-md ${isLimitHit || isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}`}
-              disabled={isLimitHit || isLoading} // <--- Disable button if limit hit
-            >
-              <Send size={20} />
+            <button onClick={() => window.location.reload()} className="text-gray-500 hover:text-red-500">
+              <LogOut size={20} />
             </button>
           </div>
+        </nav>
+      )}
+
+      {/* --- VIEW 1: LOGIN SCREEN --- */}
+      {view === "LOGIN" && (
+        <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4">
+          <div className="mb-8 p-4">
+            <img src="/logo1.png" alt="Mock Mate Logo" className="w-20 h-20 object-contain" />
+          </div>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 text-center">Master Your Interview.</h1>
+          <p className="text-gray-400 text-lg mb-8 max-w-md text-center">
+            AI-powered mock interviews. Practice via chat or rapid-fire voice sessions.
+          </p>
+          <button 
+            onClick={handleLogin}
+            className="bg-white text-slate-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition shadow-xl flex items-center gap-3"
+          >
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-6 h-6"/>
+            Sign in with Google
+          </button>
         </div>
-      </div>
+      )}
+
+      {/* --- VIEW 2: DASHBOARD --- */}
+      {/* --- VIEW 2: DASHBOARD --- */}
+      {view === "DASHBOARD" && (
+        <div className="max-w-5xl mx-auto p-8">
+          <h2 className="text-3xl font-bold mb-2">Welcome back, {user?.displayName?.split(' ')[0]} 👋</h2>
+          <p className="text-gray-500 mb-8">Choose how you want to prepare today.</p>
+          
+          <div className="grid md:grid-cols-2 gap-6 mb-6">
+            {/* Card 1: Chat Mode */}
+            <div 
+              onClick={() => setView("CHAT")}
+              className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer group hover:border-blue-200"
+            >
+              <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition">
+                <MessageSquare size={24} />
+              </div>
+              <h3 className="text-xl font-bold mb-2 text-gray-800">Deep Dive Chat</h3>
+              <p className="text-gray-500 text-sm leading-relaxed">
+                Practice with a full conversation. Great for explaining concepts and getting detailed feedback.
+              </p>
+            </div>
+
+            {/* Card 2: Rapid Fire */}
+            <div 
+              onClick={() => setView("RAPID_FIRE")}
+              className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer group hover:border-orange-200"
+            >
+              <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition">
+                <Zap size={24} />
+              </div>
+              <h3 className="text-xl font-bold mb-2 text-gray-800">Rapid Fire Mode</h3>
+              <p className="text-gray-500 text-sm leading-relaxed">
+                High pressure! 5 questions, back-to-back. Test your speed and instinct.
+              </p>
+            </div>
+          </div>
+
+          {/* --- BOTTOM CARD: RESUME MODE (CENTERED) --- */}
+          <div className="flex justify-center">
+             <div 
+              onClick={() => setView("RESUME_INPUT")}
+              className="w-full md:w-2/3 bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer group flex items-center gap-6 hover:border-green-200 relative overflow-hidden"
+            >
+               {/* Decorative background blur */}
+               <div className="absolute right-0 top-0 w-32 h-32 bg-green-50 rounded-full blur-3xl -mr-10 -mt-10 transition group-hover:bg-green-100"></div>
+
+               <div className="w-16 h-16 bg-green-100 text-green-600 rounded-2xl flex items-center justify-center shrink-0 group-hover:scale-110 transition relative z-10">
+                <FileText size={32} />
+              </div>
+              <div className="relative z-10">
+                <h3 className="text-xl font-bold mb-1 text-gray-800">Resume Review</h3>
+                <p className="text-gray-500 text-sm">
+                  Paste your resume. The AI will interview you based on your actual work history.
+                </p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* --- VIEW 3: CHAT MODE --- */}
+      {view === "CHAT" && (
+        // Pass a "back" function so the chat can return to dashboard
+        <ChatMode onBack={() => setView("DASHBOARD")}
+        externalSessionId={sessionId} />
+      )}
+
+      {/* --- VIEW 4: RAPID FIRE --- */}
+      {view === "RAPID_FIRE" && (
+        <RapidFire onBack={() => setView("DASHBOARD")} />
+      )}
+
+      {/* --- VIEW 5: RESUME INPUT --- */}
+      {view === "RESUME_INPUT" && (
+        <ResumeInput 
+          onBack={() => setView("DASHBOARD")}
+          onStart={handleResumeStart}
+        />
+      )}
+
     </div>
   );
 }
