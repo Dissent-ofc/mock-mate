@@ -22,3 +22,22 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Node
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Build
+dist/
+
+# Firebase
+.firebase/
+firebase-debug.log*
+.firebaserc
+
+# OS/IDE
+.DS_Store
+.vscode/
