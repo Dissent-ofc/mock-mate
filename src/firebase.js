@@ -5,15 +5,7 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyA-ISae3khhrbNr1FrLeI7YiEgGdzvA54c",
-  authDomain: "mock-matee.firebaseapp.com",
-  projectId: "mock-matee",
-  storageBucket: "mock-matee.firebasestorage.app",
-  messagingSenderId: "291701095032",
-  appId: "1:291701095032:web:cfdba0ad05bacc64238b8d"
-};
+//here firebase
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
