@@ -2,60 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
-/* MATERIAL 3 DARK THEME FOUNDATION */
-body {
-  background-color: #0f0f0f; /* M3 Standard Dark Background */
-  color: #e6e1e5; /* M3 Light Text */
-  font-family: 'Roboto', sans-serif; /* Optional: If you want the Google look */
+/* GLOBAL RESET */
+:root {
+  color-scheme: dark;
 }
 
-/* Custom Scrollbar for Dark Mode */
+body {
+  background-color: #0f0f0f;
+  color: #e6e1e5;
+  font-family: 'Roboto', 'Inter', system-ui, sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased; /* Makes text look thinner and cleaner */
+}
+
+/* CUSTOM SCROLLBAR (Slim & Dark) */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #1f1f1f; 
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #444; 
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #666; 
+  background: rgba(208, 188, 255, 0.5); /* Lavender on hover */
+}
+
+/* UTILITIES */
+.glass-panel {
+  background: rgba(30, 30, 30, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #d0bcff 0%, #a084dc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* ANIMATIONS */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.animate-float {
+  animation: float 4s ease-in-out infinite;
 }
 
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
 }
-
-.animate-fade-in-up {
-  animation: fadeInUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
-.animate-slide-in {
-  animation: slideInRight 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
-.glass-m3 {
-  background: rgba(30, 30, 30, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-
-html, body, #root {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden; /* Prevent side-scrolling on mobile */
-}
-
-input, textarea {
-  color-scheme: dark;
-}
+.animate-glow {
+  animation: pulse-glow 3s infinite;
 }

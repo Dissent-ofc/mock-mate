@@ -1,22 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import 'regenerator-runtime/runtime';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
-import { Mic, Send, User, Bot, MessageSquare, Plus, MicOff, Loader2, AlertTriangle, Trash2 } from 'lucide-react';
+import { Mic, Send, User, Bot, MessageSquare, Plus, MicOff, Loader2, AlertTriangle, Trash2, Code2, ShieldAlert, XCircle } from 'lucide-react';
+import CodeEditor from './CodeEditor';
 import { getGeminiResponse } from './gemini';
 import { db } from './firebase'; 
-import { collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 
 const ChatMode = ({ onBack, externalSessionId }) => {
   const [sessionId, setSessionId] = useState(externalSessionId || null);
   const [savedChats, setSavedChats] = useState([]); 
   const [messages, setMessages] = useState([
-    { text: "Hello! Click 'New Chat' to start.", sender: "ai", time: "Now" }
+    { text: "Hello! Click 'New Interview' to start.", sender: "ai", time: "Now" }
   ]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLimitHit, setIsLimitHit] = useState(false);
   const messagesEndRef = useRef(null);
-  
+  const [showCodeEditor, setShowCodeEditor] = useState(false);
+  const [currentCode, setCurrentCode] = useState("// Write your solution here...");
+  const [warnings, setWarnings] = useState(0);
+  const [violation, setViolation] = useState(null);
   const { transcript, listening, resetTranscript } = useSpeechRecognition();
 
   useEffect(() => {
@@ -41,6 +48,88 @@ const ChatMode = ({ onBack, externalSessionId }) => {
     return () => unsubscribe();
   }, []);
 
+  // Load chat and trigger AI response for resume-based chats
+  useEffect(() => {
+    const loadChatData = async () => {
+      if (!sessionId) return;
+      
+      const docRef = doc(db, "chats", sessionId);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const chatMessages = data.messages || [];
+        setMessages(chatMessages);
+
+        // FIX: If the only message is the SYSTEM/Resume message, trigger the AI response
+        if (chatMessages.length === 1 && chatMessages[0].sender === "system") {
+          generateAIResponse(chatMessages);
+        }
+      }
+    };
+    loadChatData();
+  }, [sessionId]);
+
+  const generateAIResponse = async (history) => {
+    setIsLoading(true);
+    try {
+      // Send the history (including the resume) to Gemini
+      const response = await getGeminiResponse(history);
+      
+      const aiMsg = { 
+        text: response, 
+        sender: "ai", 
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      
+      const updatedMessages = [...history, aiMsg];
+      setMessages(updatedMessages);
+
+      // Save back to Firebase
+      await setDoc(doc(db, "chats", sessionId), { messages: updatedMessages }, { merge: true });
+    } catch (error) {
+      console.error(error);
+      if (error.message?.includes("429") || error.message?.includes("503")) {
+        setIsLimitHit(true);
+        setTimeout(() => setIsLimitHit(false), 60000);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- INTEGRITY MONITOR LOGIC ---
+  useEffect(() => {
+    // 1. Detect Tab Switching
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        triggerViolation("Tab switch detected. Creating incident report.");
+      }
+    };
+
+    // 2. Detect Mouse Leaving Window
+    const handleMouseLeave = () => {
+      triggerViolation("Focus lost! Keep mouse inside the exam window.");
+    };
+
+    // Helper to handle violations
+    const triggerViolation = (msg) => {
+      setWarnings(prev => prev + 1);
+      setViolation(msg);
+      
+      // Auto-clear the red screen after 3 seconds so they can continue
+      setTimeout(() => setViolation(null), 3000);
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("mouseleave", handleMouseLeave);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener("mouseleave", handleMouseLeave);
+    };
+  }, []);
+
   const startNewChat = async () => {
     const newChatRef = await addDoc(collection(db, "chats"), {
       title: "New Interview",
@@ -48,7 +137,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
       messages: [] 
     });
     setSessionId(newChatRef.id);
-    setMessages([{ text: "Hello! What role do you want to interview for?", sender: "ai", time: "Now" }]);
+    setMessages([{ text: "Hello! What role/language do you want to interview for?", sender: "ai", time: "Now" }]);
     setIsLimitHit(false);
   };
 
@@ -117,8 +206,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
   };
 
   return (
-    <div className="flex h-full rounded-[32px] overflow-hidden bg-[#141218] border border-white/5 shadow-2xl animate-fade-in-up">
-      
+      <div className="flex h-[85vh] w-full max-w-[1600px] mx-auto rounded-[32px] overflow-hidden bg-[#141218] border border-white/5 shadow-2xl animate-fade-in-up">      
       {/* --- M3 DARK SIDEBAR --- */}
       <div className="hidden md:flex flex-col w-72 bg-[#1d1b20] border-r border-white/5 p-4">
         <div className="flex items-center gap-3 mb-8 px-2">
@@ -179,6 +267,11 @@ const ChatMode = ({ onBack, externalSessionId }) => {
             </h2>
           </div>
           <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-[#163a15] text-[#b6f2af] rounded-full border border-[#b6f2af]/10">
+            {/* PROCTORED BADGE */}
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-[#410e0b] text-[#f2b8b5] rounded-full border border-[#f2b8b5]/10 ml-2">
+              <ShieldAlert size={14} />
+              <span className="text-xs font-medium uppercase tracking-wider">Proctored</span>
+            </div>
             <span className="w-2 h-2 bg-[#b6f2af] rounded-full animate-pulse"></span>
             <span className="text-xs font-medium uppercase tracking-wider">AI Live</span>
           </div>
@@ -196,12 +289,47 @@ const ChatMode = ({ onBack, externalSessionId }) => {
                 {msg.sender === 'user' ? <User size={20} /> : <Bot size={20} />}
               </div>
               
-              <div className={`max-w-[80%] p-5 rounded-[24px] text-sm md:text-base leading-relaxed shadow-sm ${
+              {/* --- MESSAGE CONTENT (Markdown Renderer) --- */}
+              <div className={`max-w-[85%] p-5 rounded-[24px] text-sm md:text-base leading-relaxed shadow-sm ${
                   msg.sender === 'user' 
                     ? 'bg-[#4f378b] text-white rounded-tr-none' 
                     : 'bg-[#2b2930] text-[#e6e1e5] border border-white/5 rounded-tl-none'
                 }`}>
-                  {msg.text}
+                  
+                  <ReactMarkdown
+                    children={msg.text}
+                    components={{
+                      // 1. Style Code Blocks (The colorful box)
+                      code({node, inline, className, children, ...props}) {
+                        const match = /language-(\w+)/.exec(className || '')
+                        return !inline && match ? (
+                          <div className="rounded-md overflow-hidden my-2 shadow-lg border border-white/10">
+                            <SyntaxHighlighter
+                              children={String(children).replace(/\n$/, '')}
+                              style={vscDarkPlus}
+                              language={match[1]}
+                              PreTag="div"
+                              {...props}
+                            />
+                          </div>
+                        ) : (
+                          <code className={`${msg.sender === 'user' ? 'bg-white/20' : 'bg-black/30'} px-1.5 py-0.5 rounded text-xs font-mono`} {...props}>
+                            {children}
+                          </code>
+                        )
+                      },
+                      // 2. Style Bold Text (**text**)
+                      strong: ({node, ...props}) => <span className="font-bold text-[#d0bcff]" {...props} />,
+                      
+                      // 3. Style Lists (Bullets)
+                      ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-1 my-2" {...props} />,
+                      ol: ({node, ...props}) => <ol className="list-decimal pl-4 space-y-1 my-2" {...props} />,
+                      li: ({node, ...props}) => <li className="pl-1" {...props} />,
+
+                      // 4. Style Paragraphs (Spacing)
+                      p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                    }}
+                  />
               </div>
             </div>
           ))}
@@ -238,6 +366,15 @@ const ChatMode = ({ onBack, externalSessionId }) => {
             >
               {listening ? <MicOff size={22} /> : <Mic size={22} />}
             </button>
+
+            {/* --- NEW CODE BUTTON --- */}
+            <button 
+              className="w-12 h-12 rounded-full flex items-center justify-center hover:bg-[#332d41] text-[#cac4d0] transition-all border border-white/10 mr-2"
+              onClick={() => setShowCodeEditor(true)}
+              title="Open Code Editor"
+            >
+              <Code2 size={22} />
+            </button>
             
             <input 
               type="text" 
@@ -256,6 +393,41 @@ const ChatMode = ({ onBack, externalSessionId }) => {
             >
               <Send size={22} />
             </button>
+
+            {/* --- CODE EDITOR MODAL --- */}
+            {showCodeEditor && (
+            <CodeEditor 
+            code={currentCode} 
+            setCode={setCurrentCode} 
+            onClose={() => setShowCodeEditor(false)}
+            onSubmit={() => {
+            setShowCodeEditor(false);
+            // This pastes the code into the chat input automatically
+            setInputText(`Here is my code solution:\n\`\`\`javascript\n${currentCode}\n\`\`\``);
+          }} 
+        />
+      )}
+
+          {/* --- INTEGRITY VIOLATION OVERLAY --- */}
+      {violation && (
+        <div className="absolute inset-0 z-[150] bg-[#410e0b]/90 backdrop-blur-md flex flex-col items-center justify-center text-center animate-fade-in-up">
+           <div className="bg-[#601410] p-8 rounded-[32px] border border-[#f2b8b5]/30 shadow-2xl max-w-md mx-4">
+              <div className="w-20 h-20 bg-[#8c1d18] rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+                <AlertTriangle size={48} className="text-[#f2b8b5]" />
+              </div>
+              
+              <h2 className="text-3xl font-bold text-white mb-2">VIOLATION DETECTED</h2>
+              <p className="text-[#f2b8b5] text-lg font-medium mb-6">{violation}</p>
+              <div className="bg-[#410e0b] rounded-xl p-4 border border-[#f2b8b5]/10">
+                 <p className="text-[#e6e1e5] text-sm"> 
+                 </p>
+                 <p className="text-xs text-[#938f99] mt-2 uppercase tracking-wide">
+                  Admin has been notified
+                 </p>
+              </div>
+           </div>
+        </div>
+      )}
           </div>
         </div>
       </div>

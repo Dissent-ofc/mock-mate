@@ -12,11 +12,17 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "firebase": "^12.7.0",
+    "framer-motion": "^12.26.2",
     "generative-ai": "^0.1.4",
     "lucide-react": "^0.562.0",
+    "prismjs": "^1.30.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "react-simple-code-editor": "^0.14.1",
     "react-speech-recognition": "^4.0.1",
+    "react-syntax-highlighter": "^16.1.0",
+    "recharts": "^3.6.0",
     "regenerator-runtime": "^0.14.1"
   },
   "devDependencies": {
