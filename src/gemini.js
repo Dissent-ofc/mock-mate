@@ -26,10 +26,11 @@ export const getGeminiResponse = async (history, userMessage) => {
   });
 
   // Filter out the initial "Hello" from the UI so Gemini sees the pure conversation
+  // Convert system messages to user role to satisfy Gemini's requirement that first message must be from user
   const validHistory = history
     .filter((msg, index) => !(index === 0 && msg.sender === 'ai')) 
     .map(msg => ({
-      role: msg.sender === 'user' ? 'user' : 'model',
+      role: msg.sender === 'user' || msg.sender === 'system' ? 'user' : 'model',
       parts: [{ text: msg.text }]
     }));
 

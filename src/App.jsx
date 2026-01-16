@@ -10,7 +10,8 @@ import { collection, addDoc } from 'firebase/firestore';
 function App() {
   const [user, setUser] = useState(null); 
   const [view, setView] = useState("LOGIN");
-  const [sessionId, setSessionId] = useState(null); 
+  const [sessionId, setSessionId] = useState(null);
+  const [loading, setLoading] = useState(false); 
 
   const handleLogin = async () => {
     const userData = await signInWithGoogle();
@@ -37,14 +38,14 @@ const handleStartResumeInterview = async (resumeText) => {
 
     // 2. Save to Firebase
     const docRef = await addDoc(chatRef, {
-      userId: user.uid,
+      userId: user?.uid || "anonymous",
       title: "Resume: " + resumeText.substring(0, 20) + "...",
       messages: [systemMessage],
       createdAt: new Date()
     });
 
     // 3. IMPORTANT: Set the active session and switch view
-    setChatSessionId(docRef.id);
+    setSessionId(docRef.id);
     setView("CHAT"); 
     
   } catch (error) {

@@ -73,8 +73,12 @@ const ChatMode = ({ onBack, externalSessionId }) => {
   const generateAIResponse = async (history) => {
     setIsLoading(true);
     try {
-      // Send the history (including the resume) to Gemini
-      const response = await getGeminiResponse(history);
+      // Extract the system message text to use as the user's initial prompt
+      const systemMsg = history.find(msg => msg.sender === "system");
+      const promptText = systemMsg ? systemMsg.text : "Start the interview";
+      
+      // Send the system message as if it were a user message to initiate the conversation
+      const response = await getGeminiResponse(history, promptText);
       
       const aiMsg = { 
         text: response, 
@@ -131,13 +135,14 @@ const ChatMode = ({ onBack, externalSessionId }) => {
   }, []);
 
   const startNewChat = async () => {
+    const initialMessage = { text: "Hello! What role/language do you want to interview for?", sender: "ai", time: "Now" };
     const newChatRef = await addDoc(collection(db, "chats"), {
       title: "New Interview",
       createdAt: new Date(),
-      messages: [] 
+      messages: [initialMessage]
     });
     setSessionId(newChatRef.id);
-    setMessages([{ text: "Hello! What role/language do you want to interview for?", sender: "ai", time: "Now" }]);
+    setMessages([initialMessage]);
     setIsLimitHit(false);
   };
 
@@ -279,7 +284,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
-          {messages.map((msg, index) => (
+          {messages.filter(msg => msg.sender !== 'system').map((msg, index) => (
             <div key={index} className={`flex gap-4 animate-slide-in ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
                 msg.sender === 'user' 
