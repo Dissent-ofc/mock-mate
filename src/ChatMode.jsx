@@ -211,32 +211,32 @@ const ChatMode = ({ onBack, externalSessionId }) => {
   };
 
   return (
-      <div className="flex h-[85vh] w-full max-w-[1600px] mx-auto rounded-[32px] overflow-hidden bg-[#141218] border border-white/5 shadow-2xl animate-fade-in-up">      
-      {/* --- M3 DARK SIDEBAR --- */}
-      <div className="hidden md:flex flex-col w-72 bg-[#1d1b20] border-r border-white/5 p-4">
+      <div className="flex h-[85vh] w-full max-w-[1600px] mx-auto rounded-[28px] overflow-hidden bg-[var(--bg-secondary)] border border-[var(--border-subtle)] shadow-2xl animate-fade-in-up">      
+      {/* --- SIDEBAR --- */}
+      <div className="hidden md:flex flex-col w-72 bg-[var(--bg-card)] border-r border-[var(--border-subtle)] p-4">
         <div className="flex items-center gap-3 mb-8 px-2">
           <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
-          <h1 className="text-xl font-medium tracking-tight text-[#e6e1e5]">Mock Mate</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">Mock Mate</h1>
         </div>
 
         <button 
           onClick={startNewChat}
-          className="flex items-center gap-3 w-full bg-[#4f378b] hover:bg-[#6750a4] text-[#eaddff] px-4 py-4 rounded-[16px] font-medium transition-all mb-6 shadow-lg shadow-black/20"
+          className="btn-primary flex items-center gap-3 w-full px-4 py-4 rounded-2xl font-medium mb-6"
         >
           <Plus size={20} /> 
           <span>New Interview</span>
         </button>
         
         <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-          <p className="text-xs text-[#938f99] uppercase font-bold px-4 mb-2 tracking-wider">Your History</p>
+          <p className="text-xs text-[var(--text-muted)] uppercase font-bold px-4 mb-3 tracking-wider">Your History</p>
           {savedChats.map((chat) => (
             <div 
               key={chat.id}
               onClick={() => loadChat(chat)}
-              className={`group flex items-center justify-between w-full px-4 py-3 rounded-[16px] text-sm transition cursor-pointer ${
+              className={`group flex items-center justify-between w-full px-4 py-3 rounded-xl text-sm transition-all cursor-pointer ${
                 sessionId === chat.id 
-                  ? "bg-[#332d41] text-[#e8def8]" 
-                  : "text-[#cac4d0] hover:bg-[#2b2930]"
+                  ? "bg-[var(--accent-purple-dim)] text-[var(--accent-purple)] border border-[var(--accent-purple)]/20" 
+                  : "text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] border border-transparent"
               }`}
             >
               <div className="flex items-center gap-3 overflow-hidden">
@@ -245,7 +245,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
               </div>
               <button 
                 onClick={(e) => deleteChat(e, chat.id)}
-                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-[#410e0b] hover:text-[#ffb4ab] rounded-full transition-all"
+                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-[var(--accent-red-dim)] hover:text-[var(--accent-red)] rounded-full transition-all"
                 title="Delete Chat"
               >
                 <Trash2 size={14} />
@@ -256,29 +256,32 @@ const ChatMode = ({ onBack, externalSessionId }) => {
       </div>
 
       {/* --- MAIN CHAT AREA --- */}
-      <div className="flex-1 flex flex-col relative bg-[#141218]">
+      <div className="flex-1 flex flex-col relative bg-[var(--bg-primary)]">
         
         {/* Header */}
-        <header className="bg-[#141218]/90 backdrop-blur-md border-b border-white/5 px-6 py-4 flex items-center justify-between z-10 sticky top-0">
+        <header className="glass-panel border-b border-[var(--border-subtle)] px-6 py-4 flex items-center justify-between z-10 sticky top-0">
           <div className="flex items-center gap-4">
             <button 
               onClick={onBack} 
-              className="p-2 -ml-2 text-[#938f99] hover:text-[#d0bcff] hover:bg-[#332d41] rounded-full transition"
+              className="p-2.5 -ml-2 text-[var(--text-muted)] hover:text-[var(--accent-purple)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)] rounded-full transition-all border border-[var(--border-subtle)] hover:border-[var(--accent-purple)] hover:scale-105 active:scale-95"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
             </button>
-            <h2 className="font-normal text-lg text-[#e6e1e5]">
+            <h2 className="font-medium text-lg text-[var(--text-primary)]">
               {sessionId ? "Interview Session" : "Start New Session"}
             </h2>
           </div>
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-[#163a15] text-[#b6f2af] rounded-full border border-[#b6f2af]/10">
+          <div className="hidden sm:flex items-center gap-3">
+            {/* AI LIVE BADGE */}
+            <div className="flex items-center gap-2 px-4 py-2 bg-[var(--accent-green-dim)] text-[var(--accent-green)] rounded-full border border-[var(--accent-green)]/20">
+              <span className="w-2 h-2 bg-[var(--accent-green)] rounded-full animate-pulse shadow-[0_0_8px_var(--accent-green)]"></span>
+              <span className="text-xs font-medium uppercase tracking-wider">AI Live</span>
+            </div>
             {/* PROCTORED BADGE */}
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-[#410e0b] text-[#f2b8b5] rounded-full border border-[#f2b8b5]/10 ml-2">
+            <div className="flex items-center gap-2 px-4 py-2 bg-[var(--accent-red-dim)] text-[var(--accent-red)] rounded-full border border-[var(--accent-red)]/20">
               <ShieldAlert size={14} />
               <span className="text-xs font-medium uppercase tracking-wider">Proctored</span>
             </div>
-            <span className="w-2 h-2 bg-[#b6f2af] rounded-full animate-pulse"></span>
-            <span className="text-xs font-medium uppercase tracking-wider">AI Live</span>
           </div>
         </header>
 
@@ -288,17 +291,17 @@ const ChatMode = ({ onBack, externalSessionId }) => {
             <div key={index} className={`flex gap-4 animate-slide-in ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
                 msg.sender === 'user' 
-                  ? 'bg-[#332d41] border-[#d0bcff]/20 text-[#d0bcff]' 
-                  : 'bg-[#1e1c22] border-white/10 text-[#c4c7c5]'
+                  ? 'bg-[var(--accent-purple-dim)] border-[var(--accent-purple)]/30 text-[var(--accent-purple)]' 
+                  : 'bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-secondary)]'
               }`}>
                 {msg.sender === 'user' ? <User size={20} /> : <Bot size={20} />}
               </div>
               
               {/* --- MESSAGE CONTENT (Markdown Renderer) --- */}
-              <div className={`max-w-[85%] p-5 rounded-[24px] text-sm md:text-base leading-relaxed shadow-sm ${
+              <div className={`max-w-[85%] p-5 rounded-[20px] text-sm md:text-base leading-relaxed shadow-sm ${
                   msg.sender === 'user' 
-                    ? 'bg-[#4f378b] text-white rounded-tr-none' 
-                    : 'bg-[#2b2930] text-[#e6e1e5] border border-white/5 rounded-tl-none'
+                    ? 'bg-[var(--accent-purple)] text-white rounded-tr-none' 
+                    : 'glass-card rounded-tl-none'
                 }`}>
                   
                   <ReactMarkdown
@@ -308,7 +311,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
                       code({node, inline, className, children, ...props}) {
                         const match = /language-(\w+)/.exec(className || '')
                         return !inline && match ? (
-                          <div className="rounded-md overflow-hidden my-2 shadow-lg border border-white/10">
+                          <div className="rounded-xl overflow-hidden my-3 shadow-lg border border-[var(--border-medium)]">
                             <SyntaxHighlighter
                               children={String(children).replace(/\n$/, '')}
                               style={vscDarkPlus}
@@ -318,13 +321,13 @@ const ChatMode = ({ onBack, externalSessionId }) => {
                             />
                           </div>
                         ) : (
-                          <code className={`${msg.sender === 'user' ? 'bg-white/20' : 'bg-black/30'} px-1.5 py-0.5 rounded text-xs font-mono`} {...props}>
+                          <code className={`${msg.sender === 'user' ? 'bg-white/20' : 'bg-[var(--bg-elevated)]'} px-1.5 py-0.5 rounded text-xs font-mono`} {...props}>
                             {children}
                           </code>
                         )
                       },
                       // 2. Style Bold Text (**text**)
-                      strong: ({node, ...props}) => <span className="font-bold text-[#d0bcff]" {...props} />,
+                      strong: ({node, ...props}) => <span className="font-bold text-[var(--accent-purple)]" {...props} />,
                       
                       // 3. Style Lists (Bullets)
                       ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-1 my-2" {...props} />,
@@ -340,13 +343,13 @@ const ChatMode = ({ onBack, externalSessionId }) => {
           ))}
 
           {isLoading && (
-            <div className="flex gap-4">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#1e1c22] border border-white/10 text-[#c4c7c5]">
+            <div className="flex gap-4 animate-fade-in-up">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
                 <Bot size={20} />
               </div>
-              <div className="bg-[#2b2930] border border-white/5 text-[#938f99] p-4 rounded-[24px] rounded-tl-none flex items-center gap-3">
-                <Loader2 className="animate-spin text-[#d0bcff]" size={18} />
-                <span className="text-sm font-medium">Analyzing response...</span>
+              <div className="glass-card p-4 rounded-[20px] rounded-tl-none flex items-center gap-3">
+                <Loader2 className="animate-spin text-[var(--accent-purple)]" size={18} />
+                <span className="text-sm font-medium text-[var(--text-secondary)]">Analyzing response...</span>
               </div>
             </div>
           )}
@@ -354,27 +357,27 @@ const ChatMode = ({ onBack, externalSessionId }) => {
         </div>
 
         {/* Input Area */}
-        <div className="p-6 bg-[#141218] border-t border-white/5">
+        <div className="p-4 md:p-6 bg-[var(--bg-secondary)] border-t border-[var(--border-subtle)]">
           {isLimitHit && (
-             <div className="bg-[#410e0b] border border-[#f2b8b5]/20 p-3 mb-4 rounded-[12px] flex items-center gap-3 animate-bounce">
-                <AlertTriangle className="text-[#f2b8b5]" size={20} />
-                <p className="text-[#f2b8b5] text-sm font-medium">
+             <div className="bg-[var(--accent-red-dim)] border border-[var(--accent-red)]/20 p-4 mb-4 rounded-xl flex items-center gap-3 animate-bounce-subtle">
+                <AlertTriangle className="text-[var(--accent-red)]" size={20} />
+                <p className="text-[var(--accent-red)] text-sm font-medium">
                    Peak usage limit. Please wait 60 seconds.
                 </p>
              </div>
           )}
 
-          <div className={`max-w-4xl mx-auto flex items-center gap-3 bg-[#1e1c22] p-2 rounded-full border ${listening ? 'border-[#f2b8b5]' : 'border-white/10'} shadow-lg transition-colors focus-within:border-[#d0bcff]/50`}>
+          <div className={`max-w-4xl mx-auto flex items-center gap-2 bg-[var(--bg-card)] p-2 rounded-2xl border transition-all duration-300 ${listening ? 'border-[var(--accent-red)] shadow-[0_0_20px_var(--accent-red-glow)]' : 'border-[var(--border-medium)]'} focus-within:border-[var(--accent-purple)] focus-within:shadow-[0_0_20px_var(--accent-purple-glow)]`}>
              <button 
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${listening ? 'bg-[#8c1d18] text-white animate-pulse' : 'hover:bg-[#332d41] text-[#cac4d0]'}`}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${listening ? 'bg-[var(--accent-red)] text-white animate-pulse shadow-lg' : 'hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)]'}`}
               onClick={() => listening ? SpeechRecognition.stopListening() : SpeechRecognition.startListening()}
             >
               {listening ? <MicOff size={22} /> : <Mic size={22} />}
             </button>
 
-            {/* --- NEW CODE BUTTON --- */}
+            {/* --- CODE BUTTON --- */}
             <button 
-              className="w-12 h-12 rounded-full flex items-center justify-center hover:bg-[#332d41] text-[#cac4d0] transition-all border border-white/10 mr-2"
+              className="w-12 h-12 rounded-full flex items-center justify-center hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] transition-all border border-[var(--border-subtle)] hover:border-[var(--accent-purple)] hover:text-[var(--accent-purple)] hover:scale-105 active:scale-95"
               onClick={() => setShowCodeEditor(true)}
               title="Open Code Editor"
             >
@@ -383,7 +386,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
             
             <input 
               type="text" 
-              className="flex-1 bg-transparent border-none outline-none text-[#e6e1e5] px-2 placeholder-[#938f99] h-full"
+              className="flex-1 bg-transparent border-none outline-none text-[var(--text-primary)] px-3 placeholder-[var(--text-muted)] h-12"
               placeholder={isLimitHit ? "Please wait..." : "Type your answer..."}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
@@ -393,7 +396,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
             
             <button 
               onClick={handleSend} 
-              className={`w-12 h-12 bg-[#d0bcff] text-[#381e72] rounded-full flex items-center justify-center hover:bg-[#e8def8] transition-all shadow-md ${isLimitHit || isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`w-12 h-12 btn-primary rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${isLimitHit || isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={isLimitHit || isLoading}
             >
               <Send size={22} />
@@ -401,38 +404,35 @@ const ChatMode = ({ onBack, externalSessionId }) => {
 
             {/* --- CODE EDITOR MODAL --- */}
             {showCodeEditor && (
-            <CodeEditor 
-            code={currentCode} 
-            setCode={setCurrentCode} 
-            onClose={() => setShowCodeEditor(false)}
-            onSubmit={() => {
-            setShowCodeEditor(false);
-            // This pastes the code into the chat input automatically
-            setInputText(`Here is my code solution:\n\`\`\`javascript\n${currentCode}\n\`\`\``);
-          }} 
-        />
-      )}
+              <CodeEditor 
+                code={currentCode} 
+                setCode={setCurrentCode} 
+                onClose={() => setShowCodeEditor(false)}
+                onSubmit={() => {
+                  setShowCodeEditor(false);
+                  setInputText(`Here is my code solution:\n\`\`\`javascript\n${currentCode}\n\`\`\``);
+                }} 
+              />
+            )}
 
           {/* --- INTEGRITY VIOLATION OVERLAY --- */}
-      {violation && (
-        <div className="absolute inset-0 z-[150] bg-[#410e0b]/90 backdrop-blur-md flex flex-col items-center justify-center text-center animate-fade-in-up">
-           <div className="bg-[#601410] p-8 rounded-[32px] border border-[#f2b8b5]/30 shadow-2xl max-w-md mx-4">
-              <div className="w-20 h-20 bg-[#8c1d18] rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
-                <AlertTriangle size={48} className="text-[#f2b8b5]" />
+          {violation && (
+            <div className="absolute inset-0 z-[150] bg-[var(--accent-red-dim)]/95 backdrop-blur-xl flex flex-col items-center justify-center text-center animate-fade-in-up">
+              <div className="glass-card p-10 rounded-[32px] border-2 border-[var(--accent-red)]/30 shadow-2xl max-w-md mx-4">
+                <div className="w-24 h-24 bg-[var(--accent-red)] rounded-full flex items-center justify-center mx-auto mb-8 animate-pulse shadow-[0_0_40px_var(--accent-red-glow)]">
+                  <AlertTriangle size={52} className="text-white" />
+                </div>
+                
+                <h2 className="text-3xl font-bold text-[var(--text-primary)] mb-3">VIOLATION DETECTED</h2>
+                <p className="text-[var(--accent-red)] text-lg font-medium mb-8">{violation}</p>
+                <div className="bg-[var(--bg-elevated)] rounded-xl p-4 border border-[var(--border-subtle)]">
+                  <p className="text-xs text-[var(--text-muted)] uppercase tracking-widest">
+                    Admin has been notified
+                  </p>
+                </div>
               </div>
-              
-              <h2 className="text-3xl font-bold text-white mb-2">VIOLATION DETECTED</h2>
-              <p className="text-[#f2b8b5] text-lg font-medium mb-6">{violation}</p>
-              <div className="bg-[#410e0b] rounded-xl p-4 border border-[#f2b8b5]/10">
-                 <p className="text-[#e6e1e5] text-sm"> 
-                 </p>
-                 <p className="text-xs text-[#938f99] mt-2 uppercase tracking-wide">
-                  Admin has been notified
-                 </p>
-              </div>
-           </div>
-        </div>
-      )}
+            </div>
+          )}
           </div>
         </div>
       </div>

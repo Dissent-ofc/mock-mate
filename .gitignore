@@ -34,7 +34,7 @@ node_modules/
 dist/
 
 # Firebase
-.firebase/
+.firebase
 firebase-debug.log*
 .firebaserc
 
