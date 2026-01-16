@@ -38,7 +38,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading, isLimitHit]);
 
-  // Load History
   useEffect(() => {
     const q = query(collection(db, "chats"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -48,7 +47,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
     return () => unsubscribe();
   }, []);
 
-  // Load chat and trigger AI response for resume-based chats
   useEffect(() => {
     const loadChatData = async () => {
       if (!sessionId) return;
@@ -61,7 +59,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
         const chatMessages = data.messages || [];
         setMessages(chatMessages);
 
-        // FIX: If the only message is the SYSTEM/Resume message, trigger the AI response
         if (chatMessages.length === 1 && chatMessages[0].sender === "system") {
           generateAIResponse(chatMessages);
         }
@@ -73,11 +70,9 @@ const ChatMode = ({ onBack, externalSessionId }) => {
   const generateAIResponse = async (history) => {
     setIsLoading(true);
     try {
-      // Extract the system message text to use as the user's initial prompt
       const systemMsg = history.find(msg => msg.sender === "system");
       const promptText = systemMsg ? systemMsg.text : "Start the interview";
       
-      // Send the system message as if it were a user message to initiate the conversation
       const response = await getGeminiResponse(history, promptText);
       
       const aiMsg = { 
@@ -89,7 +84,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
       const updatedMessages = [...history, aiMsg];
       setMessages(updatedMessages);
 
-      // Save back to Firebase
       await setDoc(doc(db, "chats", sessionId), { messages: updatedMessages }, { merge: true });
     } catch (error) {
       console.error(error);
@@ -102,26 +96,21 @@ const ChatMode = ({ onBack, externalSessionId }) => {
     }
   };
 
-  // --- INTEGRITY MONITOR LOGIC ---
   useEffect(() => {
-    // 1. Detect Tab Switching
     const handleVisibilityChange = () => {
       if (document.hidden) {
         triggerViolation("Tab switch detected. Creating incident report.");
       }
     };
 
-    // 2. Detect Mouse Leaving Window
     const handleMouseLeave = () => {
       triggerViolation("Focus lost! Keep mouse inside the exam window.");
     };
 
-    // Helper to handle violations
     const triggerViolation = (msg) => {
       setWarnings(prev => prev + 1);
       setViolation(msg);
       
-      // Auto-clear the red screen after 3 seconds so they can continue
       setTimeout(() => setViolation(null), 3000);
     };
 
@@ -212,7 +201,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
 
   return (
       <div className="flex h-[85vh] w-full max-w-[1600px] mx-auto rounded-[28px] overflow-hidden bg-[var(--bg-secondary)] border border-[var(--border-subtle)] shadow-2xl animate-fade-in-up">      
-      {/* --- SIDEBAR --- */}
       <div className="hidden md:flex flex-col w-72 bg-[var(--bg-card)] border-r border-[var(--border-subtle)] p-4">
         <div className="flex items-center gap-3 mb-8 px-2">
           <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
@@ -255,10 +243,8 @@ const ChatMode = ({ onBack, externalSessionId }) => {
         </div>
       </div>
 
-      {/* --- MAIN CHAT AREA --- */}
       <div className="flex-1 flex flex-col relative bg-[var(--bg-primary)]">
         
-        {/* Header */}
         <header className="glass-panel border-b border-[var(--border-subtle)] px-6 py-4 flex items-center justify-between z-10 sticky top-0">
           <div className="flex items-center gap-4">
             <button 
@@ -272,12 +258,10 @@ const ChatMode = ({ onBack, externalSessionId }) => {
             </h2>
           </div>
           <div className="hidden sm:flex items-center gap-3">
-            {/* AI LIVE BADGE */}
             <div className="flex items-center gap-2 px-4 py-2 bg-[var(--accent-green-dim)] text-[var(--accent-green)] rounded-full border border-[var(--accent-green)]/20">
               <span className="w-2 h-2 bg-[var(--accent-green)] rounded-full animate-pulse shadow-[0_0_8px_var(--accent-green)]"></span>
               <span className="text-xs font-medium uppercase tracking-wider">AI Live</span>
             </div>
-            {/* PROCTORED BADGE */}
             <div className="flex items-center gap-2 px-4 py-2 bg-[var(--accent-red-dim)] text-[var(--accent-red)] rounded-full border border-[var(--accent-red)]/20">
               <ShieldAlert size={14} />
               <span className="text-xs font-medium uppercase tracking-wider">Proctored</span>
@@ -285,7 +269,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
           </div>
         </header>
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
           {messages.filter(msg => msg.sender !== 'system').map((msg, index) => (
             <div key={index} className={`flex gap-4 animate-slide-in ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
@@ -297,7 +280,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
                 {msg.sender === 'user' ? <User size={20} /> : <Bot size={20} />}
               </div>
               
-              {/* --- MESSAGE CONTENT (Markdown Renderer) --- */}
               <div className={`max-w-[85%] p-5 rounded-[20px] text-sm md:text-base leading-relaxed shadow-sm ${
                   msg.sender === 'user' 
                     ? 'bg-[var(--accent-purple)] text-white rounded-tr-none' 
@@ -307,7 +289,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
                   <ReactMarkdown
                     children={msg.text}
                     components={{
-                      // 1. Style Code Blocks (The colorful box)
                       code({node, inline, className, children, ...props}) {
                         const match = /language-(\w+)/.exec(className || '')
                         return !inline && match ? (
@@ -326,15 +307,12 @@ const ChatMode = ({ onBack, externalSessionId }) => {
                           </code>
                         )
                       },
-                      // 2. Style Bold Text (**text**)
                       strong: ({node, ...props}) => <span className="font-bold text-[var(--accent-purple)]" {...props} />,
                       
-                      // 3. Style Lists (Bullets)
                       ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-1 my-2" {...props} />,
                       ol: ({node, ...props}) => <ol className="list-decimal pl-4 space-y-1 my-2" {...props} />,
                       li: ({node, ...props}) => <li className="pl-1" {...props} />,
 
-                      // 4. Style Paragraphs (Spacing)
                       p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
                     }}
                   />
@@ -356,7 +334,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
         <div className="p-4 md:p-6 bg-[var(--bg-secondary)] border-t border-[var(--border-subtle)]">
           {isLimitHit && (
              <div className="bg-[var(--accent-red-dim)] border border-[var(--accent-red)]/20 p-4 mb-4 rounded-xl flex items-center gap-3 animate-bounce-subtle">
@@ -375,7 +352,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
               {listening ? <MicOff size={22} /> : <Mic size={22} />}
             </button>
 
-            {/* --- CODE BUTTON --- */}
             <button 
               className="w-12 h-12 rounded-full flex items-center justify-center hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] transition-all border border-[var(--border-subtle)] hover:border-[var(--accent-purple)] hover:text-[var(--accent-purple)] hover:scale-105 active:scale-95"
               onClick={() => setShowCodeEditor(true)}
@@ -402,7 +378,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
               <Send size={22} />
             </button>
 
-            {/* --- CODE EDITOR MODAL --- */}
             {showCodeEditor && (
               <CodeEditor 
                 code={currentCode} 
@@ -415,7 +390,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
               />
             )}
 
-          {/* --- INTEGRITY VIOLATION OVERLAY --- */}
           {violation && (
             <div className="absolute inset-0 z-[150] bg-[var(--accent-red-dim)]/95 backdrop-blur-xl flex flex-col items-center justify-center text-center animate-fade-in-up">
               <div className="glass-card p-10 rounded-[32px] border-2 border-[var(--accent-red)]/30 shadow-2xl max-w-md mx-4">

@@ -15,7 +15,7 @@ function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Theme Effect
+  
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
@@ -68,11 +68,9 @@ const handleStartResumeInterview = async (resumeText) => {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] font-sans selection:bg-purple-500/30 transition-theme">
       
-      {/* --- ENHANCED HEADER --- */}
       {view !== "LOGIN" && (
         <nav className="fixed top-0 w-full z-50 glass-panel px-4 md:px-8 py-4 animate-fade-in-up">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
-            {/* Logo */}
             <div 
               className="flex items-center gap-3 cursor-pointer group" 
               onClick={() => setView("DASHBOARD")}
@@ -87,7 +85,6 @@ const handleStartResumeInterview = async (resumeText) => {
               </div>
             </div>
 
-            {/* Center - Current Mode Indicator */}
             <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-[var(--bg-card)] rounded-full border border-[var(--border-subtle)]">
               {view === "DASHBOARD" && <Sparkles size={16} className="text-[var(--accent-purple)]" />}
               {view === "CHAT" && <MessageSquare size={16} className="text-[var(--accent-purple)]" />}
@@ -101,9 +98,7 @@ const handleStartResumeInterview = async (resumeText) => {
               </span>
             </div>
             
-            {/* Right Side */}
             <div className="flex items-center gap-3">
-              {/* Theme Toggle */}
               <button 
                 onClick={toggleTheme}
                 className="p-2.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:border-[var(--accent-purple)] transition-all hover:scale-105 active:scale-95"
@@ -116,13 +111,11 @@ const handleStartResumeInterview = async (resumeText) => {
                 )}
               </button>
 
-              {/* User Profile */}
               <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-[var(--bg-card)] rounded-full border border-[var(--border-subtle)] hover:border-[var(--accent-purple)]/50 transition-all cursor-pointer group">
                 <img src={user?.photoURL} alt="User" className="w-7 h-7 rounded-full border-2 border-[var(--accent-purple)]/50 group-hover:border-[var(--accent-purple)] transition-colors" />
                 <span className="text-sm font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">{user?.displayName?.split(' ')[0]}</span>
               </div>
 
-              {/* Logout */}
               <button 
                 onClick={() => window.location.reload()} 
                 className="p-2.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:border-[var(--accent-red)] hover:bg-[var(--accent-red-dim)] text-[var(--text-muted)] hover:text-[var(--accent-red)] transition-all hover:scale-105 active:scale-95"
@@ -135,29 +128,22 @@ const handleStartResumeInterview = async (resumeText) => {
         </nav>
       )}
 
-      {/* --- PADDING FOR FIXED HEADER --- */}
       <div className={view !== "LOGIN" ? "pt-28 pb-12" : ""}>
 
-        {/* --- VIEW 1: STUNNING LOGIN SCREEN --- */}
         {view === "LOGIN" && (
           <div className="relative flex flex-col items-center justify-center min-h-screen overflow-hidden bg-[var(--bg-primary)]">
             
-            {/* Animated Mesh Background */}
             <div className="absolute inset-0 mesh-gradient"></div>
             
-            {/* Floating Orbs */}
             <div className="absolute top-[10%] left-[5%] w-[400px] h-[400px] bg-purple-600/30 rounded-full blur-[120px] animate-glow"></div>
             <div className="absolute bottom-[10%] right-[5%] w-[350px] h-[350px] bg-blue-600/25 rounded-full blur-[100px] animate-glow" style={{animationDelay: '1s'}}></div>
             <div className="absolute top-[40%] right-[20%] w-[250px] h-[250px] bg-pink-600/20 rounded-full blur-[80px] animate-glow" style={{animationDelay: '2s'}}></div>
             
-            {/* Animated Rings */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] border border-[var(--accent-purple)]/10 rounded-full animate-spin-slow"></div>
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] border border-[var(--accent-purple)]/5 rounded-full animate-spin-slow" style={{animationDirection: 'reverse', animationDuration: '30s'}}></div>
 
-            {/* Main Content */}
             <div className="z-10 relative flex flex-col items-center max-w-xl w-full mx-4 animate-fade-in-up">
               
-              {/* Floating Logo with Glow */}
               <div className="relative mb-10 animate-float">
                 <div className="absolute inset-0 bg-[var(--accent-purple)] blur-3xl opacity-40 scale-150"></div>
                 <div className="relative glass-panel p-6 rounded-[32px] border border-[var(--accent-purple)]/30">
@@ -165,18 +151,15 @@ const handleStartResumeInterview = async (resumeText) => {
                 </div>
               </div>
 
-              {/* Title */}
               <h1 className="text-6xl md:text-7xl font-bold mb-6 tracking-tight text-center">
                 <span className="text-[var(--text-primary)]">Mock</span>
                 <span className="text-gradient"> Mate</span>
               </h1>
               
-              {/* Tagline */}
               <p className="text-[var(--text-secondary)] text-center text-xl md:text-2xl mb-12 leading-relaxed font-light max-w-md">
                 Elevate your preparation with tailored guidance that builds confidence and showcases your expertise. 
               </p>
 
-              {/* Feature Pills */}
               <div className="flex flex-wrap justify-center gap-3 mb-12">
                 {['AI Interviewer', 'Real-time Feedback', 'Resume Analysis',].map((feature, i) => (
                   <div 
@@ -190,7 +173,6 @@ const handleStartResumeInterview = async (resumeText) => {
                 ))}
               </div>
 
-              {/* Login Button */}
               <button 
                 onClick={handleLogin}
                 disabled={isLoggingIn}
@@ -212,13 +194,11 @@ const handleStartResumeInterview = async (resumeText) => {
                 </span>
               </button>
 
-              {/* Footer */}
               <div className="mt-10 flex items-center gap-3 text-[var(--text-muted)] text-sm">
                 <Sparkles size={16} className="text-[var(--accent-purple)]" />
                 <span>Powered by Gemini AI</span>
               </div>
 
-              {/* Theme Toggle on Login */}
               <button 
                 onClick={toggleTheme}
                 className="absolute top-8 right-8 p-3 rounded-full glass-panel border border-[var(--border-subtle)] hover:border-[var(--accent-purple)] transition-all hover:scale-110 active:scale-95"
@@ -229,11 +209,9 @@ const handleStartResumeInterview = async (resumeText) => {
           </div>
         )}
 
-        {/* --- VIEW 2: DASHBOARD --- */}
         {view === "DASHBOARD" && (
           <div className="max-w-6xl mx-auto px-4 md:px-6 relative z-10">
             
-            {/* Welcome Header */}
             <div className="mb-12 mt-4 animate-fade-in-up">
               <div className="flex items-center gap-3 mb-3">
               </div>
@@ -243,20 +221,16 @@ const handleStartResumeInterview = async (resumeText) => {
               <p className="text-[var(--text-secondary)] text-lg md:text-xl font-light">Let's get you ready for that offer letter.</p>
             </div>
             
-            {/* Grid System */}
             <div className="grid md:grid-cols-2 gap-6 mb-6">
               
-              {/* 1. CHAT MODE CARD */}
               <div 
                 onClick={() => setView("CHAT")}
                 className="group relative glass-card p-8 rounded-[28px] cursor-pointer card-hover-purple overflow-hidden animate-fade-in-up stagger-1"
               >
-                {/* Background Icon */}
                 <div className="absolute right-[-30px] top-[-30px] opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-500 group-hover:scale-110 transform">
                   <MessageSquare size={220} />
                 </div>
                 
-                {/* Glow Effect */}
                 <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent-purple)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[28px]"></div>
                 
                 <div className="relative z-10">
@@ -274,7 +248,6 @@ const handleStartResumeInterview = async (resumeText) => {
                 </div>
               </div>
 
-              {/* 2. RAPID FIRE CARD */}
               <div 
                 onClick={() => setView("RAPID_FIRE")}
                 className="group relative glass-card p-8 rounded-[28px] cursor-pointer card-hover-red overflow-hidden animate-fade-in-up stagger-2"
@@ -301,14 +274,12 @@ const handleStartResumeInterview = async (resumeText) => {
               </div>
             </div>
 
-            {/* 3. RESUME CARD (Full Width) */}
             <div 
               onClick={() => setView("RESUME_INPUT")}
               className="group relative glass-card p-1 rounded-[32px] cursor-pointer card-hover-green overflow-hidden animate-fade-in-up stagger-3"
             >
               <div className="bg-[var(--bg-card)] group-hover:bg-[var(--bg-card-hover)] rounded-[28px] p-8 md:p-10 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden transition-colors">
                 
-                {/* Glow Effect */}
                 <div className="absolute right-0 top-0 w-80 h-80 bg-[var(--accent-green)]/5 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-[var(--accent-green)]/10 transition-colors"></div>
 
                 <div className="w-20 h-20 bg-[var(--accent-green-dim)] text-[var(--accent-green)] rounded-3xl flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg relative z-10">
@@ -330,7 +301,6 @@ const handleStartResumeInterview = async (resumeText) => {
           </div>
         )}
 
-        {/* --- VIEW 3: CHAT MODE --- */}
         {view === "CHAT" && (
           <ChatMode 
             onBack={() => setView("DASHBOARD")} 
@@ -342,12 +312,10 @@ const handleStartResumeInterview = async (resumeText) => {
         {view === "ADMIN" && <AdminDashboard onBack={() => setView("DASHBOARD")} />}
         
         
-        {/* --- VIEW 4: RAPID FIRE --- */}
         {view === "RAPID_FIRE" && (
           <RapidFire onBack={() => setView("DASHBOARD")} />
         )}
 
-        {/* --- VIEW 5: RESUME INPUT --- */}
         {view === "RESUME_INPUT" && (
            <ResumeInput 
              onBack={() => setView("DASHBOARD")}

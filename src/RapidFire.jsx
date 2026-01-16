@@ -5,7 +5,7 @@ import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognitio
 
 const RapidFire = ({ onBack }) => {
   const [topic, setTopic] = useState("");
-  const [gameState, setGameState] = useState("START"); // START, PLAYING, REPORT
+  const [gameState, setGameState] = useState("START");
   const [questions, setQuestions] = useState([]);
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [answers, setAnswers] = useState([]);
@@ -79,7 +79,6 @@ const RapidFire = ({ onBack }) => {
   return (
     <div className="flex flex-col h-full w-full max-w-5xl mx-auto items-center p-4 md:p-6 animate-fade-in-up overflow-y-auto custom-scrollbar">
       
-      {/* HEADER */}
       <div className="w-full flex items-center justify-between mb-8 animate-slide-in-left">
         <button 
           onClick={onBack} 
@@ -94,10 +93,8 @@ const RapidFire = ({ onBack }) => {
         </div>
       </div>
 
-      {/* --- START SCREEN --- */}
       {gameState === "START" && (
         <div className="w-full max-w-md text-center space-y-8 glass-card p-10 rounded-[32px] mt-10 animate-fade-in-scale">
-          {/* Icon */}
           <div className="w-20 h-20 mx-auto bg-[var(--accent-red-dim)] text-[var(--accent-red)] rounded-3xl flex items-center justify-center mb-4">
             <Zap size={40} />
           </div>
@@ -139,10 +136,8 @@ const RapidFire = ({ onBack }) => {
         </div>
       )}
 
-      {/* --- GAME SCREEN --- */}
       {gameState === "PLAYING" && (
         <div className="w-full max-w-3xl space-y-8 flex flex-col items-center animate-fade-in-up">
-          {/* Progress Indicator */}
           <div className="flex items-center gap-2 mb-4">
             {[0,1,2,3,4].map((i) => (
               <div 
@@ -160,14 +155,12 @@ const RapidFire = ({ onBack }) => {
             Question {currentQIndex + 1} of 5
           </div>
           
-          {/* Question Card */}
           <div className="glass-card p-8 rounded-[28px] w-full animate-fade-in-scale">
             <h2 className="text-2xl md:text-3xl font-light text-[var(--text-primary)] text-center leading-relaxed">
               "{questions[currentQIndex]}"
             </h2>
           </div>
           
-          {/* Answer Area */}
           <div className="relative w-full">
             <textarea 
               className="w-full bg-[var(--bg-card)] border border-[var(--border-medium)] p-6 rounded-[24px] h-48 focus:ring-2 ring-[var(--accent-purple)]/40 focus:border-[var(--accent-purple)] outline-none text-[var(--text-primary)] text-lg transition-all placeholder:text-[var(--text-muted)] resize-none"
@@ -197,7 +190,6 @@ const RapidFire = ({ onBack }) => {
         </div>
       )}
 
-      {/* --- ELABORATE REPORT SCREEN --- */}
       {gameState === "REPORT" && (
         <div className="w-full max-w-4xl space-y-8 animate-fade-in-up pb-10">
           {loading ? (
@@ -210,7 +202,6 @@ const RapidFire = ({ onBack }) => {
              </div>
           ) : report && (
             <div className="space-y-8">
-              {/* Score Card */}
               <div className="text-center p-10 glass-card rounded-[32px] relative overflow-hidden animate-fade-in-scale">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-[var(--accent-purple)] via-[var(--accent-blue)] to-[var(--accent-green)]"></div>
                 <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] mb-4">Overall Performance</p>
@@ -218,7 +209,6 @@ const RapidFire = ({ onBack }) => {
                 <h3 className="text-xl text-[var(--text-secondary)] italic">"{report.summary}"</h3>
               </div>
 
-              {/* DETAILED ANALYSIS TABLE */}
               <div className="grid gap-4">
                 <h4 className="text-lg font-semibold text-[var(--text-primary)] px-2 flex items-center gap-2">
                   <span className="w-2 h-2 bg-[var(--accent-purple)] rounded-full"></span>
@@ -240,7 +230,6 @@ const RapidFire = ({ onBack }) => {
                 ))}
               </div>
 
-              {/* Actionable Tips */}
               <div className="glass-card p-8 rounded-[28px] border-l-4 border-[var(--accent-purple)]">
                 <h4 className="font-bold text-[var(--accent-purple)] mb-5 flex items-center gap-2 uppercase text-sm tracking-widest">
                   <Sparkles size={18} />

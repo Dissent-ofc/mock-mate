@@ -8,13 +8,10 @@ const ResumeInput = ({ onBack, onStart }) => {
   return (
     <div className="flex flex-col h-full items-center justify-center p-4 animate-fade-in-up">
       
-      {/* GLASS PANEL CONTAINER */}
       <div className="w-full max-w-3xl glass-card rounded-[32px] shadow-2xl overflow-hidden relative">
         
-        {/* Background Decorative Glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--accent-green)]/10 rounded-full blur-[100px] pointer-events-none"></div>
 
-        {/* HEADER */}
         <div className="p-8 border-b border-[var(--border-subtle)] flex items-start justify-between">
            <div className="flex items-center gap-4">
               <button 
@@ -39,7 +36,6 @@ const ResumeInput = ({ onBack, onStart }) => {
            </div>
         </div>
 
-        {/* INPUT AREA */}
         <div className={`p-1 transition-all duration-500 ${isFocused ? 'bg-gradient-to-r from-[var(--accent-green)]/10 to-transparent' : 'bg-transparent'}`}>
            <textarea
              className="w-full h-80 bg-[var(--bg-primary)] p-6 text-[var(--text-primary)] text-base md:text-lg leading-relaxed focus:outline-none resize-none custom-scrollbar placeholder:text-[var(--text-muted)] rounded-lg transition-colors"
@@ -51,7 +47,6 @@ const ResumeInput = ({ onBack, onStart }) => {
            />
         </div>
 
-        {/* FOOTER ACTIONS */}
         <div className="p-6 bg-[var(--bg-card)] border-t border-[var(--border-subtle)] flex flex-col md:flex-row items-center justify-between gap-4">
            
            <div className="flex items-center gap-3 text-sm text-[var(--text-muted)]">
@@ -88,7 +83,6 @@ const ResumeInput = ({ onBack, onStart }) => {
 
       </div>
       
-      {/* TIP TEXT */}
       <p className="mt-8 text-[var(--text-muted)] text-sm text-center max-w-md">
          <span className="text-[var(--accent-green)] font-semibold">Pro Tip:</span> You can also paste the Job Description to practice for a specific role.
       </p>
