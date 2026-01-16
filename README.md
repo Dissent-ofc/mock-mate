@@ -10,7 +10,6 @@
 - [Key Features](#key-features)
 - [Use Cases](#use-cases)
 - [Tech Stack](#tech-stack)
-- [Getting Started](#getting-started)
 - [Usage](#usage)
 - [Contributing](#contributing)
 - [License](#license)
@@ -107,11 +106,10 @@ This project is licensed under the MIT License – see the [LICENSE](LICENSE) fi
 
 ---
 
-## 📧 Support
+## Support
 
 For questions, issues, or feedback:
 - Open an [GitHub Issue](https://github.com/Dissent-ofc/mock-mate/issues)
-- Check existing documentation and FAQs
 - Contact the maintainers
 
 ---
