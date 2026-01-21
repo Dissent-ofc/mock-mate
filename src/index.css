@@ -291,6 +291,17 @@ body {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.btn-primary > * {
+  position: relative;
+  z-index: 1;
+}
+
+.btn-primary span,
+.btn-primary svg {
+  position: relative;
+  z-index: 1;
+}
+
 .btn-primary::before {
   content: '';
   position: absolute;
@@ -298,6 +309,7 @@ body {
   background: linear-gradient(135deg, #a855f7 0%, var(--accent-purple) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
+  z-index: 0;
 }
 
 .btn-primary:hover::before {

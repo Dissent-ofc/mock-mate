@@ -10,7 +10,7 @@ import { getGeminiResponse } from './gemini';
 import { db } from './firebase'; 
 import { collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 
-const ChatMode = ({ onBack, externalSessionId }) => {
+const ChatMode = ({ onBack, externalSessionId, user }) => {
   const [sessionId, setSessionId] = useState(externalSessionId || null);
   const [savedChats, setSavedChats] = useState([]); 
   const [messages, setMessages] = useState([
@@ -22,7 +22,6 @@ const ChatMode = ({ onBack, externalSessionId }) => {
   const messagesEndRef = useRef(null);
   const [showCodeEditor, setShowCodeEditor] = useState(false);
   const [currentCode, setCurrentCode] = useState("// Write your solution here...");
-  const [warnings, setWarnings] = useState(0);
   const [violation, setViolation] = useState(null);
   const { transcript, listening, resetTranscript } = useSpeechRecognition();
 
@@ -38,15 +37,21 @@ const ChatMode = ({ onBack, externalSessionId }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading, isLimitHit]);
 
+  // Load chat history filtered by current user
   useEffect(() => {
+    if (!user?.uid) return;
+    
     const q = query(collection(db, "chats"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const chatsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const chatsData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(chat => chat.userId === user.uid); // Only show user's own chats
       setSavedChats(chatsData);
     });
     return () => unsubscribe();
-  }, []);
+  }, [user?.uid]);
 
+  // Load chat messages when sessionId changes
   useEffect(() => {
     const loadChatData = async () => {
       if (!sessionId) return;
@@ -65,6 +70,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
       }
     };
     loadChatData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   const generateAIResponse = async (history) => {
@@ -87,9 +93,28 @@ const ChatMode = ({ onBack, externalSessionId }) => {
       await setDoc(doc(db, "chats", sessionId), { messages: updatedMessages }, { merge: true });
     } catch (error) {
       console.error(error);
-      if (error.message?.includes("429") || error.message?.includes("503")) {
+      const isRateLimit = error.message?.includes("429") || 
+                          error.message?.includes("rate") || 
+                          error.message?.includes("quota") ||
+                          error.message?.includes("503");
+      if (isRateLimit) {
         setIsLimitHit(true);
+        // Show rate limit message as AI response
+        const errorMsg = {
+          text: "⏳ I need a moment to catch my breath! The AI service is temporarily busy. Please wait 60 seconds and try again.",
+          sender: "ai",
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setMessages([...history, errorMsg]);
         setTimeout(() => setIsLimitHit(false), 60000);
+      } else {
+        // Generic error
+        const errorMsg = {
+          text: "😅 Something went wrong. Please try sending your message again.",
+          sender: "ai",
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setMessages([...history, errorMsg]);
       }
     } finally {
       setIsLoading(false);
@@ -108,9 +133,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
     };
 
     const triggerViolation = (msg) => {
-      setWarnings(prev => prev + 1);
       setViolation(msg);
-      
       setTimeout(() => setViolation(null), 3000);
     };
 
@@ -126,6 +149,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
   const startNewChat = async () => {
     const initialMessage = { text: "Hello! What role/language do you want to interview for?", sender: "ai", time: "Now" };
     const newChatRef = await addDoc(collection(db, "chats"), {
+      userId: user?.uid, // Associate chat with current user
       title: "New Interview",
       createdAt: new Date(),
       messages: [initialMessage]
@@ -161,6 +185,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
     let currentSessionId = sessionId;
     if (!currentSessionId) {
       const newChatRef = await addDoc(collection(db, "chats"), {
+        userId: user?.uid, // Associate chat with current user
         title: inputText.substring(0, 20) + "...", 
         createdAt: new Date(),
         messages: []
@@ -289,7 +314,7 @@ const ChatMode = ({ onBack, externalSessionId }) => {
                   <ReactMarkdown
                     children={msg.text}
                     components={{
-                      code({node, inline, className, children, ...props}) {
+                      code({inline, className, children, ...props}) {
                         const match = /language-(\w+)/.exec(className || '')
                         return !inline && match ? (
                           <div className="rounded-xl overflow-hidden my-3 shadow-lg border border-[var(--border-medium)]">
@@ -307,13 +332,13 @@ const ChatMode = ({ onBack, externalSessionId }) => {
                           </code>
                         )
                       },
-                      strong: ({node, ...props}) => <span className="font-bold text-[var(--accent-purple)]" {...props} />,
+                      strong: ({...props}) => <span className="font-bold text-[var(--accent-purple)]" {...props} />,
                       
-                      ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-1 my-2" {...props} />,
-                      ol: ({node, ...props}) => <ol className="list-decimal pl-4 space-y-1 my-2" {...props} />,
-                      li: ({node, ...props}) => <li className="pl-1" {...props} />,
+                      ul: ({...props}) => <ul className="list-disc pl-4 space-y-1 my-2" {...props} />,
+                      ol: ({...props}) => <ol className="list-decimal pl-4 space-y-1 my-2" {...props} />,
+                      li: ({...props}) => <li className="pl-1" {...props} />,
 
-                      p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                      p: ({...props}) => <p className="mb-2 last:mb-0" {...props} />,
                     }}
                   />
               </div>
@@ -360,14 +385,24 @@ const ChatMode = ({ onBack, externalSessionId }) => {
               <Code2 size={22} />
             </button>
             
-            <input 
-              type="text" 
-              className="flex-1 bg-transparent border-none outline-none text-[var(--text-primary)] px-3 placeholder-[var(--text-muted)] h-12"
+            <textarea 
+              className="flex-1 bg-transparent border-none outline-none text-[var(--text-primary)] px-3 placeholder-[var(--text-muted)] min-h-[48px] max-h-32 py-3 resize-none leading-relaxed"
               placeholder={isLimitHit ? "Please wait..." : "Type your answer..."}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               disabled={isLimitHit || isLoading}
+              rows={1}
+              style={{ height: 'auto', minHeight: '48px' }}
+              onInput={(e) => {
+                e.target.style.height = 'auto';
+                e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px';
+              }}
             />
             
             <button 

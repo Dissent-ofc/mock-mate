@@ -1,10 +1,112 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(API_KEY);
+// Multiple API keys for rotation (add as many as you have)
+const API_KEYS = [
+  import.meta.env.VITE_GEMINI_API_KEY,
+  import.meta.env.VITE_GEMINI_API_KEY_2,
+  import.meta.env.VITE_GEMINI_API_KEY_3,
+].filter(Boolean); // Remove undefined keys
+
+let currentKeyIndex = 0;
+const keyFailures = new Map(); // Track which keys are rate limited
+
+const getNextWorkingKey = () => {
+  const now = Date.now();
+  
+  // Try each key, skipping ones that failed recently (within 60s)
+  for (let i = 0; i < API_KEYS.length; i++) {
+    const index = (currentKeyIndex + i) % API_KEYS.length;
+    const lastFailure = keyFailures.get(index) || 0;
+    
+    if (now - lastFailure > 60000) { // 60 second cooldown per key
+      currentKeyIndex = index;
+      return API_KEYS[index];
+    }
+  }
+  
+  // All keys are on cooldown, use the one that failed longest ago
+  let oldestFailureIndex = 0;
+  let oldestTime = Infinity;
+  keyFailures.forEach((time, index) => {
+    if (time < oldestTime) {
+      oldestTime = time;
+      oldestFailureIndex = index;
+    }
+  });
+  
+  currentKeyIndex = oldestFailureIndex;
+  return API_KEYS[oldestFailureIndex];
+};
+
+const markKeyAsFailed = (keyIndex) => {
+  keyFailures.set(keyIndex, Date.now());
+  console.log(`API key ${keyIndex + 1} rate limited, rotating to next key...`);
+};
+
+const createGenAI = (apiKey) => new GoogleGenerativeAI(apiKey);
+
+// Rate limit protection
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 1000; // 1 second between requests
+
+// Simple response cache for identical prompts
+const responseCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Retry with exponential backoff AND key rotation
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const retryWithBackoff = async (fn, onRateLimit) => {
+  const maxRetries = API_KEYS.length * 2; // Try each key twice
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      // Ensure minimum time between requests
+      const now = Date.now();
+      const timeSinceLastRequest = now - lastRequestTime;
+      if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+        await sleep(MIN_REQUEST_INTERVAL - timeSinceLastRequest);
+      }
+      lastRequestTime = Date.now();
+      
+      return await fn();
+    } catch (error) {
+      const isRateLimit = error.message?.includes('429') || 
+                          error.message?.includes('rate') || 
+                          error.message?.includes('quota') ||
+                          error.status === 429;
+      
+      if (isRateLimit) {
+        // Mark current key as failed and get next one
+        markKeyAsFailed(currentKeyIndex);
+        onRateLimit?.(); // Callback to update the genAI instance
+        
+        if (attempt < maxRetries - 1) {
+          const delay = 1000; // Quick retry with new key
+          console.log(`Switching to key ${currentKeyIndex + 1}, retrying...`);
+          await sleep(delay);
+          continue;
+        }
+      }
+      throw error;
+    }
+  }
+};
 
 export const getGeminiResponse = async (history, userMessage) => {
-  const model = genAI.getGenerativeModel({ 
+  // Check cache first (for repeated identical requests)
+  const cacheKey = JSON.stringify({ history: history.slice(-3), userMessage });
+  const cached = responseCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log('Using cached response');
+    return cached.response;
+  }
+
+  // Get current working API key
+  let apiKey = getNextWorkingKey();
+  let genAI = createGenAI(apiKey);
+
+  const getModel = () => genAI.getGenerativeModel({ 
     model: "gemini-2.5-flash",
     systemInstruction: {
       role: "system",
@@ -32,11 +134,32 @@ export const getGeminiResponse = async (history, userMessage) => {
       parts: [{ text: msg.text }]
     }));
 
-  const chat = model.startChat({
-    history: validHistory,
-  });
+  const response = await retryWithBackoff(
+    async () => {
+      const model = getModel();
+      const chat = model.startChat({
+        history: validHistory,
+      });
 
-  const result = await chat.sendMessage(userMessage);
-  const response = await result.response;
-  return response.text();
+      const result = await chat.sendMessage(userMessage);
+      const res = await result.response;
+      return res.text();
+    },
+    // Callback when rate limited - switch to next API key
+    () => {
+      apiKey = getNextWorkingKey();
+      genAI = createGenAI(apiKey);
+    }
+  );
+
+  // Cache the response
+  responseCache.set(cacheKey, { response, timestamp: Date.now() });
+  
+  // Clean old cache entries
+  if (responseCache.size > 50) {
+    const oldestKey = responseCache.keys().next().value;
+    responseCache.delete(oldestKey);
+  }
+
+  return response;
 };

@@ -11,15 +11,23 @@ function App() {
   const [user, setUser] = useState(null); 
   const [view, setView] = useState("LOGIN");
   const [sessionId, setSessionId] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [hasVisitedDashboard, setHasVisitedDashboard] = useState(false);
 
   
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Mark dashboard as visited after first render
+  useEffect(() => {
+    if (view === "DASHBOARD" && !hasVisitedDashboard) {
+      const timer = setTimeout(() => setHasVisitedDashboard(true), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [view, hasVisitedDashboard]);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -36,15 +44,15 @@ function App() {
   };
 
 const handleStartResumeInterview = async (resumeText) => {
-  setLoading(true);
   try {
     const chatRef = collection(db, "chats");
     
     const systemMessage = {
       text: `SYSTEM: The user has provided this resume: "${resumeText}". 
-             Act as an expert recruiter. Analyze the resume and start the interview 
-             by introducing yourself and asking the first tough technical question 
-             based on their projects or skills.`,
+             You are Alex Chen, a senior technical recruiter at a top tech company.
+             Analyze the resume carefully, then introduce yourself as Alex and start the interview 
+             by asking the first tough technical question based on their projects or skills.
+             Do NOT use placeholders like [Name] - always use your name Alex Chen.`,
       sender: "system",
       time: new Date().toLocaleTimeString()
     };
@@ -62,7 +70,6 @@ const handleStartResumeInterview = async (resumeText) => {
   } catch (error) {
     console.error("Error starting resume interview:", error);
   }
-  setLoading(false);
 };
 
   return (
@@ -212,7 +219,7 @@ const handleStartResumeInterview = async (resumeText) => {
         {view === "DASHBOARD" && (
           <div className="max-w-6xl mx-auto px-4 md:px-6 relative z-10">
             
-            <div className="mb-12 mt-4 animate-fade-in-up">
+            <div className={`mb-12 mt-4 ${!hasVisitedDashboard ? 'animate-fade-in-up' : ''}`}>
               <div className="flex items-center gap-3 mb-3">
               </div>
               <h2 className="text-4xl md:text-5xl font-light mb-3 text-[var(--text-primary)] tracking-tight">
@@ -225,7 +232,7 @@ const handleStartResumeInterview = async (resumeText) => {
               
               <div 
                 onClick={() => setView("CHAT")}
-                className="group relative glass-card p-8 rounded-[28px] cursor-pointer card-hover-purple overflow-hidden animate-fade-in-up stagger-1"
+                className={`group relative glass-card p-8 rounded-[28px] cursor-pointer card-hover-purple overflow-hidden ${!hasVisitedDashboard ? 'animate-fade-in-up stagger-1' : ''}`}
               >
                 <div className="absolute right-[-30px] top-[-30px] opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-500 group-hover:scale-110 transform">
                   <MessageSquare size={220} />
@@ -250,7 +257,7 @@ const handleStartResumeInterview = async (resumeText) => {
 
               <div 
                 onClick={() => setView("RAPID_FIRE")}
-                className="group relative glass-card p-8 rounded-[28px] cursor-pointer card-hover-red overflow-hidden animate-fade-in-up stagger-2"
+                className={`group relative glass-card p-8 rounded-[28px] cursor-pointer card-hover-red overflow-hidden ${!hasVisitedDashboard ? 'animate-fade-in-up stagger-2' : ''}`}
               >
                 <div className="absolute right-[-30px] top-[-30px] opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-500 group-hover:scale-110 transform">
                   <Zap size={220} />
@@ -276,7 +283,7 @@ const handleStartResumeInterview = async (resumeText) => {
 
             <div 
               onClick={() => setView("RESUME_INPUT")}
-              className="group relative glass-card p-1 rounded-[32px] cursor-pointer card-hover-green overflow-hidden animate-fade-in-up stagger-3"
+              className={`group relative glass-card p-1 rounded-[32px] cursor-pointer card-hover-green overflow-hidden ${!hasVisitedDashboard ? 'animate-fade-in-up stagger-3' : ''}`}
             >
               <div className="bg-[var(--bg-card)] group-hover:bg-[var(--bg-card-hover)] rounded-[28px] p-8 md:p-10 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden transition-colors">
                 
@@ -304,7 +311,8 @@ const handleStartResumeInterview = async (resumeText) => {
         {view === "CHAT" && (
           <ChatMode 
             onBack={() => setView("DASHBOARD")} 
-            externalSessionId={sessionId} 
+            externalSessionId={sessionId}
+            user={user}
           />
         )}
 

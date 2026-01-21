@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getGeminiResponse } from './gemini';
-import { Mic, MicOff, Send, Play, CheckCircle, ArrowLeft, Zap, Loader2, RotateCcw, Sparkles, XCircle, AlertCircle, ChevronRight } from 'lucide-react';
+import { Mic, MicOff, Send, Play, CheckCircle, ArrowLeft, Zap, Loader2, RotateCcw, Sparkles, XCircle, AlertCircle, ChevronRight, Clock } from 'lucide-react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
+
+const TIMER_DURATION = 30; // seconds per question
 
 const RapidFire = ({ onBack }) => {
   const [topic, setTopic] = useState("");
@@ -12,12 +14,39 @@ const RapidFire = ({ onBack }) => {
   const [currentAnswer, setCurrentAnswer] = useState("");
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
+  const timerRef = useRef(null);
 
   const { transcript, listening, resetTranscript } = useSpeechRecognition();
 
   if (listening && transcript !== currentAnswer) {
     setCurrentAnswer(transcript);
   }
+
+  // Timer effect
+  useEffect(() => {
+    if (gameState === "PLAYING") {
+      setTimeLeft(TIMER_DURATION);
+      timerRef.current = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [gameState, currentQIndex]);
+
+  // Auto-submit when timer hits 0
+  useEffect(() => {
+    if (timeLeft === 0 && gameState === "PLAYING") {
+      handleNext();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, gameState]);
 
   const startGame = async () => {
     if (!topic) return;
@@ -29,8 +58,13 @@ const RapidFire = ({ onBack }) => {
       const qArray = JSON.parse(cleanJson);
       setQuestions(qArray);
       setGameState("PLAYING");
-    } catch (e) {
-      alert("Error generating questions.");
+    } catch (error) {
+      const isRateLimit = error.message?.includes("429") || error.message?.includes("rate") || error.message?.includes("quota");
+      if (isRateLimit) {
+        alert("⏳ AI service is busy. Please wait 60 seconds and try again.");
+      } else {
+        alert("Error generating questions. Please try again.");
+      }
     }
     setLoading(false);
   };
@@ -71,6 +105,17 @@ const RapidFire = ({ onBack }) => {
         setReport(JSON.parse(cleanReport));
       } catch (e) {
         console.error("Report Error:", e);
+        // Fallback report if API fails
+        setReport({
+          score: "N/A",
+          summary: "Unable to generate AI analysis due to high traffic. Your answers have been recorded.",
+          detailedAnalysis: newAnswers.map(a => ({
+            q: a.question,
+            status: "Pending",
+            feedback: "Analysis unavailable - please try again later"
+          })),
+          improvementTips: ["Try the session again when API is available", "Practice your answers out loud"]
+        });
       }
       setLoading(false);
     }
@@ -151,8 +196,21 @@ const RapidFire = ({ onBack }) => {
             ))}
           </div>
           
-          <div className="text-sm text-[var(--text-muted)] uppercase tracking-widest">
-            Question {currentQIndex + 1} of 5
+          <div className="flex items-center justify-between w-full">
+            <div className="text-sm text-[var(--text-muted)] uppercase tracking-widest">
+              Question {currentQIndex + 1} of 5
+            </div>
+            
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-mono font-bold text-lg ${
+              timeLeft <= 10 
+                ? 'bg-[var(--accent-red-dim)] text-[var(--accent-red)] animate-pulse' 
+                : timeLeft <= 20 
+                  ? 'bg-yellow-500/20 text-yellow-500' 
+                  : 'bg-[var(--accent-green-dim)] text-[var(--accent-green)]'
+            }`}>
+              <Clock size={18} />
+              <span>{timeLeft}s</span>
+            </div>
           </div>
           
           <div className="glass-card p-8 rounded-[28px] w-full animate-fade-in-scale">
