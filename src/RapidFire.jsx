@@ -3,7 +3,7 @@ import { getGeminiResponse } from './gemini';
 import { Mic, MicOff, Send, Play, CheckCircle, ArrowLeft, Zap, Loader2, RotateCcw, Sparkles, XCircle, AlertCircle, ChevronRight, Clock } from 'lucide-react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
-const TIMER_DURATION = 30; // seconds per question
+const TIMER_DURATION = 30;
 
 const RapidFire = ({ onBack }) => {
   const [topic, setTopic] = useState("");
@@ -23,7 +23,7 @@ const RapidFire = ({ onBack }) => {
     setCurrentAnswer(transcript);
   }
 
-  // Timer effect
+  // Timer countdown effect
   useEffect(() => {
     if (gameState === "PLAYING") {
       setTimeLeft(TIMER_DURATION);
@@ -39,14 +39,6 @@ const RapidFire = ({ onBack }) => {
     }
     return () => clearInterval(timerRef.current);
   }, [gameState, currentQIndex]);
-
-  // Auto-submit when timer hits 0
-  useEffect(() => {
-    if (timeLeft === 0 && gameState === "PLAYING") {
-      handleNext();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeLeft, gameState]);
 
   const startGame = async () => {
     if (!topic) return;
@@ -105,7 +97,6 @@ const RapidFire = ({ onBack }) => {
         setReport(JSON.parse(cleanReport));
       } catch (e) {
         console.error("Report Error:", e);
-        // Fallback report if API fails
         setReport({
           score: "N/A",
           summary: "Unable to generate AI analysis due to high traffic. Your answers have been recorded.",
@@ -120,6 +111,14 @@ const RapidFire = ({ onBack }) => {
       setLoading(false);
     }
   };
+
+  // Auto-submit when timer hits 0
+  useEffect(() => {
+    if (timeLeft === 0 && gameState === "PLAYING") {
+      handleNext();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, gameState]);
 
   return (
     <div className="flex flex-col h-full w-full max-w-5xl mx-auto items-center p-4 md:p-6 animate-fade-in-up overflow-y-auto custom-scrollbar">

@@ -21,7 +21,6 @@ function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // Mark dashboard as visited after first render
   useEffect(() => {
     if (view === "DASHBOARD" && !hasVisitedDashboard) {
       const timer = setTimeout(() => setHasVisitedDashboard(true), 800);

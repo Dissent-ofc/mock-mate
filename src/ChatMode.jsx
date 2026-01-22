@@ -20,6 +20,7 @@ const ChatMode = ({ onBack, externalSessionId, user }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLimitHit, setIsLimitHit] = useState(false);
   const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
   const [showCodeEditor, setShowCodeEditor] = useState(false);
   const [currentCode, setCurrentCode] = useState("// Write your solution here...");
   const [violation, setViolation] = useState(null);
@@ -37,7 +38,6 @@ const ChatMode = ({ onBack, externalSessionId, user }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading, isLimitHit]);
 
-  // Load chat history filtered by current user
   useEffect(() => {
     if (!user?.uid) return;
     
@@ -45,13 +45,12 @@ const ChatMode = ({ onBack, externalSessionId, user }) => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const chatsData = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(chat => chat.userId === user.uid); // Only show user's own chats
+        .filter(chat => chat.userId === user.uid); 
       setSavedChats(chatsData);
     });
     return () => unsubscribe();
   }, [user?.uid]);
 
-  // Load chat messages when sessionId changes
   useEffect(() => {
     const loadChatData = async () => {
       if (!sessionId) return;
@@ -99,7 +98,6 @@ const ChatMode = ({ onBack, externalSessionId, user }) => {
                           error.message?.includes("503");
       if (isRateLimit) {
         setIsLimitHit(true);
-        // Show rate limit message as AI response
         const errorMsg = {
           text: "⏳ I need a moment to catch my breath! The AI service is temporarily busy. Please wait 60 seconds and try again.",
           sender: "ai",
@@ -108,7 +106,6 @@ const ChatMode = ({ onBack, externalSessionId, user }) => {
         setMessages([...history, errorMsg]);
         setTimeout(() => setIsLimitHit(false), 60000);
       } else {
-        // Generic error
         const errorMsg = {
           text: "😅 Something went wrong. Please try sending your message again.",
           sender: "ai",
@@ -149,7 +146,7 @@ const ChatMode = ({ onBack, externalSessionId, user }) => {
   const startNewChat = async () => {
     const initialMessage = { text: "Hello! What role/language do you want to interview for?", sender: "ai", time: "Now" };
     const newChatRef = await addDoc(collection(db, "chats"), {
-      userId: user?.uid, // Associate chat with current user
+      userId: user?.uid,
       title: "New Interview",
       createdAt: new Date(),
       messages: [initialMessage]
@@ -185,7 +182,7 @@ const ChatMode = ({ onBack, externalSessionId, user }) => {
     let currentSessionId = sessionId;
     if (!currentSessionId) {
       const newChatRef = await addDoc(collection(db, "chats"), {
-        userId: user?.uid, // Associate chat with current user
+        userId: user?.uid,
         title: inputText.substring(0, 20) + "...", 
         createdAt: new Date(),
         messages: []
@@ -199,6 +196,11 @@ const ChatMode = ({ onBack, externalSessionId, user }) => {
     setMessages(updatedMessages);
     setInputText("");
     resetTranscript();
+    
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '48px';
+    }
     setIsLoading(true);
 
     try {
@@ -386,6 +388,7 @@ const ChatMode = ({ onBack, externalSessionId, user }) => {
             </button>
             
             <textarea 
+              ref={textareaRef}
               className="flex-1 bg-transparent border-none outline-none text-[var(--text-primary)] px-3 placeholder-[var(--text-muted)] min-h-[48px] max-h-32 py-3 resize-none leading-relaxed"
               placeholder={isLimitHit ? "Please wait..." : "Type your answer..."}
               value={inputText}
